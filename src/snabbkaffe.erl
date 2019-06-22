@@ -9,6 +9,7 @@
         , push_stats/2
         , push_stats/3
         , analyze_statistics/0
+        , run/3
         ]).
 
 -export([ events_of_kind/2
@@ -24,6 +25,8 @@
 
 -export([ mk_all/1
         ]).
+
+-include("snabbkaffe.hrl").
 
 %%====================================================================
 %% Types
@@ -86,11 +89,11 @@ events_of_kind(Kind, Events) when is_atom(Kind) ->
 events_of_kind(Kinds, Events) ->
   [E || E = #{kind := Kind} <- Events, lists:member(Kind, Kinds)].
 
--spec projection([atom()] | all, trace()) -> trace().
-projection(all, Trace) ->
-  Trace;
+-spec projection([atom()] | atom(), trace()) -> list().
+projection(Field, Trace) when is_atom(Field) ->
+  [maps:get(Field, I) || I <- Trace];
 projection(Fields, Trace) ->
-  [maps:with(Fields, I) || I <- Trace].
+  [list_to_tuple([maps:get(F, I) || F <- Fields]) || I <- Trace].
 
 -spec erase_timestamps(trace()) -> trace().
 erase_timestamps(Trace) ->
@@ -115,6 +118,37 @@ find_pairs(Strict, CauseP, EffectP, Guard, L) ->
         end,
   L1 = lists:filtermap(Fun, L),
   do_find_pairs(Strict, Guard, L1).
+
+-spec run( number() | undefined
+         , fun()
+         , fun()
+         ) -> boolean().
+run(MaybeBucket, Run, Check) ->
+  _ = snabbkaffe:collect_trace(),
+  snabbkaffe:tp('$trace_begin', #{}),
+  try
+    Return = Run(),
+    Trace = snabbkaffe:collect_trace(),
+    RunTime = ?find_pairs( false
+                         , #{kind := '$trace_begin'}
+                         , #{kind := '$trace_end'}
+                         , Trace
+                         ),
+    push_stats(run_time, MaybeBucket, RunTime),
+    try
+      Check(Return, Trace)
+    catch EC1:Error1:Stack1 ->
+        log( "Check stage failed: ~p:~p~nStacktrace: ~p~n"
+           , [EC1, Error1, Stack1]
+           ),
+        false
+    end
+  catch EC:Error:Stack ->
+      log( "Run stage failed: ~p:~p~nStacktrace: ~p~n"
+         , [EC, Error, Stack]
+         ),
+      false
+  end.
 
 %%====================================================================
 %% CT overhauls
@@ -141,11 +175,17 @@ mk_all(Module) ->
 
 -spec push_stat(metric(), number()) -> ok.
 push_stat(Metric, Num) ->
-  gen_server:call(?SERVER, {push_stat, Metric, Num}).
+  push_stat(Metric, undefined, Num).
 
--spec push_stat(metric(), number(), number()) -> ok.
+-spec push_stat(metric(), number() | undefined, number()) -> ok.
 push_stat(Metric, X, Y) ->
-  gen_server:call(?SERVER, {push_stat, Metric, {X, Y}}).
+  Val = case X of
+          undefined ->
+            Y;
+          _ ->
+            {X, Y}
+        end,
+  gen_server:call(?SERVER, {push_stat, Metric, Val}).
 
 -spec push_stats(metric(), number(), [maybe_pair()] | number()) -> ok.
 push_stats(Metric, Bucket, Pairs) ->
@@ -334,9 +374,9 @@ analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
                 ||{Bucket, Stats} <- Buckets],
   Plot = asciiart:plot([{$*, PlotPoints}]),
   log("~s~n", [asciiart:render(Plot)]),
-  log("        N    min         max        avg~n", []),
+  log("         N    min         max        avg~n", []),
   lists:foreach( fun({Key, Stats}) ->
-                     log( "~9b ~e ~e ~e~n"
+                     log( "~10b ~e ~e ~e~n"
                         , [ Key
                           , proplists:get_value(min, Stats) * 1.0
                           , proplists:get_value(max, Stats) * 1.0

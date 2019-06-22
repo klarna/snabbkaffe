@@ -28,6 +28,8 @@
 
 -export_type([vector/0, canvas/0]).
 
+-define(epsilon, 1.0e-6).
+
 %%====================================================================
 %% API functions
 %%====================================================================
@@ -39,7 +41,6 @@ init() ->
 -spec render(canvas()) -> iolist().
 render(Cnv) ->
   {{Xm, Ym}, {XM, YM}} = dimensions(Cnv),
-  Height = YM - Ym,
   [[[maps:get({X, Y}, Cnv, $ ) || X <- lists:seq(Xm, XM)], $\n]
    || Y <- lists:reverse(lists:seq(Ym, YM))].
 
@@ -114,11 +115,13 @@ plot(Datapoints, Config) ->
   XM = bound(max, Config, XX),
   Ym = bound(min, Config, YY),
   YM = bound(max, Config, YY),
+  DX = max(?epsilon, XM - Xm),
+  DY = max(?epsilon, YM - Ym),
   %% Dimensions of the plot:
   AspectRatio = maps:get(aspect_ratio, Config, 0.2),
   Width = max(length(Datapoints) * 2, 70),
   Height = round(Width * AspectRatio),
-  Frame = {{Xm, Ym}, {Width / (XM - Xm), Height / (YM - Ym)}},
+  Frame = {{Xm, Ym}, {Width / DX, Height / DY}},
   %% Draw axis
   Cnv0 = draw( [ %% Vertical:
                  line({0, 0}, {0, Height - 1}, $|)

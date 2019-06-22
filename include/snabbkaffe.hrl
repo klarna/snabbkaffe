@@ -40,4 +40,13 @@
 -define(strict_causality(M1, M2, Trace),
         ?strict_causality(M1, M2, true, Trace)).
 
+-define(check_trace(Bucket, Run, Check),
+        snabbkaffe:run( Bucket
+                      , fun() -> Run end
+                      , Check
+                      )).
+
+-define(check_trace(Run, Check),
+        ?check_trace(undefined, Run, Check)).
+
 -endif.

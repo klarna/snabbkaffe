@@ -72,7 +72,7 @@ handle_call(_Request, _From, State) ->
 
 handle_info({flush, To}, State = #s{trace = Trace}) ->
   gen_server:reply(To, {ok, lists:reverse(Trace)}),
-  {noreply, State};
+  {noreply, State #s{trace = []}};
 handle_info(_, State) ->
   {noreply, State}.
 

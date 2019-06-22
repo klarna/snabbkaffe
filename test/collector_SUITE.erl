@@ -75,3 +75,16 @@ t_pair_metric_buckets(_Config) when is_list(_Config) ->
                      , Trace
                      ),
   snabbkaffe:push_stats(foo_bar, 10, Pairs).
+
+t_run_1(_Config) when is_list(_Config) ->
+  [?check_trace( I
+               , begin
+                   [?tp(foo, #{}) || J <- lists:seq(1, I)],
+                   true
+                 end
+               , fun(Ret, Trace) ->
+                     ?assertMatch(true, Ret),
+                     ?assertMatch(I, length(snabbkaffe:events_of_kind(foo, Trace)))
+                 end
+               )
+   || I <- lists:seq(1, 1000)].
