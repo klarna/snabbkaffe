@@ -4,8 +4,9 @@
 -export([ start_trace/0
         , collect_trace/0
         , tp/2
-        , start_stats_collection/0
-        , analyse_statistics/0
+        , push_stat/2
+        , push_stat/3
+        , analyze_statistics/0
         ]).
 
 -export([ events_of_kind/2
@@ -28,6 +29,8 @@
 
 -type kind() :: atom().
 
+-type metric() :: atom().
+
 -type timestamp() :: integer().
 
 -type event() ::
@@ -49,10 +52,10 @@
 -type maybe(A) :: {just, A} | nothing.
 
 -export_type([ kind/0, timestamp/0, event/0, timed_event/0, trace/0
-             , maybe_pair/0, maybe/1
+             , maybe_pair/0, maybe/1, metric/0
              ]).
 
--define(STATS_TABLE, snabbkaffe_stats_table).
+-define(SERVER, snabbkaffe_collector).
 
 %%====================================================================
 %% API functions
@@ -63,7 +66,7 @@ tp(Kind, Event) ->
   Event1 = Event #{ ts   => os:system_time()
                   , kind => Kind
                   },
-  gen_server:cast(snabbkaffe_collector, Event1).
+  gen_server:cast(?SERVER, Event1).
 
 -spec collect_trace() -> trace().
 collect_trace() ->
@@ -134,27 +137,18 @@ mk_all(Module) ->
 %% Statistical functions
 %%====================================================================
 
--spec start_stats_collection() -> ok.
-start_stats_collection() ->
-  catch ets:delete(?STATS_TABLE),
-  ets:new(?STATS_TABLE, [named_table, public]),
-  ok.
+-spec push_stat(metric(), number()) -> ok.
+push_stat(Metric, Num) ->
+  gen_server:call(?SERVER, {push_stat, Metric, Num}).
 
-analyse_statistics() ->
+-spec push_stat(metric(), number(), number()) -> ok.
+push_stat(Metric, X, Y) ->
+  gen_server:call(?SERVER, {push_stat, Metric, {X, Y}}).
+
+analyze_statistics() ->
+  {ok, Stats} = gen_server:call(snabbkaffe_collector, get_stats),
+  maps:map(fun analyze_metric/2, Stats),
   ok.
-   %% Kinds = lists:append(ets:lookup(?STATS_TABLE, '$kinds')),
-   %% Stats = ets:tab2list(?STATS_TABLE),
-   %% Kinds =
-   %% case ets:first(?STATS_TABLE) of
-   %%    '$end_of_table' ->
-   %%       io:format(user, "No statistics.~n", []),
-   %%       ok;
-   %%    _ ->
-   %%       io:format(user, "Scheduling:~n", []),
-   %%       analyse_statistics(?SHEDULE_STATS_TABLE),
-   %%       io:format(user, "Extention:~n", []),
-   %%       analyse_statistics(?EXPAND_STATS_TABLE)
-   %% end.
 
 %%====================================================================
 %% Checks
@@ -284,25 +278,57 @@ take(Pred, [A|T], Acc) ->
       take(Pred, T, [A|Acc])
   end.
 
-%% analyse_statistics(Table) ->
-%%   Stats0 = [{Key, bear:get_statistics(Vals)}
-%%             || {Key, Vals} <- lists:keysort(1, ets:tab2list(Table))
-%%            ],
-%%   Stats = lists:filter( fun({_, Val}) ->
-%%                             proplists:get_value(n, Val) > 0
-%%                         end
-%%                       , Stats0
-%%                       ),
-%%   io:format(user, "     N    min      max       avg~n", []),
-%%   lists:foreach( fun({Key, Stats}) ->
-%%                      io:format(user, "~6b ~f ~f ~f~n",
-%%                                [ Key
-%%                                , proplists:get_value(min, Stats) * 1.0
-%%                                , proplists:get_value(max, Stats) * 1.0
-%%                                , proplists:get_value(arithmetic_mean, Stats) * 1.0
-%%                                ])
-%%                  end
-%%                , Stats
-%%                ),
-%%   {_, Last} = lists:last(Stats),
-%%   io:format(user, "Stats:~n~p~n", [Last]).
+analyze_metric(MetricName, DataPoints = [N|_]) when is_number(N) ->
+  %% This is a simple metric:
+  Stats = bear:get_statistics(DataPoints),
+  log( "-------------------------------~n"
+       "~p statistics:~n~p~n"
+     , [MetricName, Stats]);
+analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
+  %% This "clustering" is not scientific at all
+  {XX, _} = lists:unzip(Datapoints),
+  Min = lists:min(XX),
+  Max = lists:max(XX),
+  NumBuckets = 10,
+  BucketSize = (Max - Min) div NumBuckets,
+  PushBucket =
+    fun({X, Y}, Acc) ->
+        B = (X - Min) div BucketSize,
+        maps:update_with( B
+                        , fun(L) -> [Y|L] end
+                        , [Y]
+                        , Acc
+                        )
+    end,
+  Buckets0 = lists:foldl(PushBucket, #{}, Datapoints),
+  BucketStats =
+    fun({Key, Vals}) when length(Vals) > 5 ->
+        Stats = bear:get_statistics(Vals),
+        {true, {Key, Stats}};
+       (_) ->
+        false
+    end,
+  Buckets = lists:filtermap( BucketStats
+                           , lists:keysort(1, maps:to_list(Buckets0))
+                           ),
+  %% Print per-bucket stats:
+  log( "-------------------------------~n"
+       "~p statistics:~n"
+     , [MetricName]),
+  log("        N    min         max        avg~n", []),
+  lists:foreach( fun({Key, Stats}) ->
+                     log( "~9b ~e ~e ~e~n"
+                        , [ Min + Key * BucketSize
+                          , proplists:get_value(min, Stats) * 1.0
+                          , proplists:get_value(max, Stats) * 1.0
+                          , proplists:get_value(arithmetic_mean, Stats) * 1.0
+                          ])
+                 end
+               , Buckets
+               ),
+  %% Print more elaborate info for the last bucket
+  {_, Last} = lists:last(Buckets),
+  log("Stats:~n~p~n", [Last]).
+
+log(Format, Args) ->
+  io:format(user, Format, Args).

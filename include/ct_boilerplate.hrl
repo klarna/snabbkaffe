@@ -9,7 +9,6 @@ init_per_testcase(TestCase, Config) ->
             catch
               error:function_clause -> Config
             end,
-  ok = snabbkaffe:start_stats_collection(),
   ok = snabbkaffe:start_trace(),
   Config1.
 
@@ -18,6 +17,8 @@ end_per_testcase(TestCase, Config) ->
   catch
     error:function_clause -> ok
   end,
+  snabbkaffe:analyze_statistics(),
+  snabbkaffe_collector:stop(),
   ok.
 
 all() ->

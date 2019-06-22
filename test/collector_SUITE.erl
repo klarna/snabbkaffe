@@ -42,3 +42,14 @@ t_bar({'end', _Config}) ->
   ok;
 t_bar(Config) when is_list(Config) ->
   ok.
+
+t_simple_metric(_Config) when is_list(_Config) ->
+  [snabbkaffe:push_stat(test, rand:uniform())
+   || I <- lists:seq(1, 100)],
+  ok.
+
+t_bucket_metric(_Config) when is_list(_Config) ->
+  [snabbkaffe:push_stat(test, 100 + I*10, I + rand:uniform())
+   || I <- lists:seq(1, 100)
+    , _ <- lists:seq(1, 10)],
+  ok.
