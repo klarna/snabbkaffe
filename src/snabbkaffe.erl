@@ -6,6 +6,8 @@
         , tp/2
         , push_stat/2
         , push_stat/3
+        , push_stats/2
+        , push_stats/3
         , analyze_statistics/0
         ]).
 
@@ -46,8 +48,8 @@
 
 -type trace() :: [event()].
 
--type maybe_pair() :: {pair, event(), event()}
-                    | {singleton, event()}.
+-type maybe_pair() :: {pair, timed_event(), timed_event()}
+                    | {singleton, timed_event()}.
 
 -type maybe(A) :: {just, A} | nothing.
 
@@ -144,6 +146,18 @@ push_stat(Metric, Num) ->
 -spec push_stat(metric(), number(), number()) -> ok.
 push_stat(Metric, X, Y) ->
   gen_server:call(?SERVER, {push_stat, Metric, {X, Y}}).
+
+-spec push_stats(metric(), number(), [maybe_pair()] | number()) -> ok.
+push_stats(Metric, Bucket, Pairs) ->
+  lists:foreach( fun(Val) -> push_stat(Metric, Bucket, Val) end
+               , transform_stats(Pairs)
+               ).
+
+-spec push_stats(metric(), [maybe_pair()] | number()) -> ok.
+push_stats(Metric, Pairs) ->
+  lists:foreach( fun(Val) -> push_stat(Metric, Val) end
+               , transform_stats(Pairs)
+               ).
 
 analyze_statistics() ->
   {ok, Stats} = gen_server:call(snabbkaffe_collector, get_stats),
@@ -290,10 +304,11 @@ analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
   Min = lists:min(XX),
   Max = lists:max(XX),
   NumBuckets = 10,
-  BucketSize = (Max - Min) div NumBuckets,
+  BucketSize = max(1, (Max - Min) div NumBuckets),
   PushBucket =
     fun({X, Y}, Acc) ->
-        B = (X - Min) div BucketSize,
+        B0 = (X - Min) div BucketSize,
+        B = Min + B0 * BucketSize,
         maps:update_with( B
                         , fun(L) -> [Y|L] end
                         , [Y]
@@ -315,10 +330,14 @@ analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
   log( "-------------------------------~n"
        "~p statistics:~n"
      , [MetricName]),
+  PlotPoints = [{Bucket, proplists:get_value(arithmetic_mean, Stats)}
+                ||{Bucket, Stats} <- Buckets],
+  Plot = asciiart:plot([{$*, PlotPoints}]),
+  log("~s~n", [asciiart:render(Plot)]),
   log("        N    min         max        avg~n", []),
   lists:foreach( fun({Key, Stats}) ->
                      log( "~9b ~e ~e ~e~n"
-                        , [ Min + Key * BucketSize
+                        , [ Key
                           , proplists:get_value(min, Stats) * 1.0
                           , proplists:get_value(max, Stats) * 1.0
                           , proplists:get_value(arithmetic_mean, Stats) * 1.0
@@ -329,6 +348,20 @@ analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
   %% Print more elaborate info for the last bucket
   {_, Last} = lists:last(Buckets),
   log("Stats:~n~p~n", [Last]).
+
+transform_stats(Data) ->
+  Fun = fun({pair, #{ts := T1}, #{ts := T2}}) ->
+            Dt = erlang:convert_time_unit( T2 - T1
+                                         , native
+                                         , millisecond
+                                         ),
+            {true, Dt * 1.0e-6};
+           (Num) when is_number(Num) ->
+            {true, Num};
+           (_) ->
+            false
+        end,
+  lists:filtermap(Fun, Data).
 
 log(Format, Args) ->
   io:format(user, Format, Args).
