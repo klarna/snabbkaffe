@@ -1,0 +1,288 @@
+#+TITLE: Snabbkaffe
+
+[[https://travis-ci.org/k32/snabbkaffe.svg?branch=master]]
+
+* Introduction
+
+This library provides functions for simple trace-based testing.
+
+It works like this:
+
+ 1) Programmer manually instruments the code with trace points
+ 2) Testcases are split in two parts:
+    - *Run stage* where the program runs and emits event trace
+    - *Check stage* where trace is collected and validated against the
+      spec(s)
+ 3) Trace points become ordinary log messages in the release build
+
+This approach can be used in a component test involving an ensemble of
+interacting processes. It has a few nice properties:
+
+ + Checks can be separated from the program execution
+ + Checks are independent from each other and fully composable
+ + Trace contains complete history of the process execution, thus
+   making certain types of concurrency bugs, like livelocks, easier to
+   detect
+
+* Usage
+
+** Instrumenting the code
+
+Code instrumentation is done manually by inserting =tp= macros at the
+points of interest:
+
+#+BEGIN_SRC erlang
+?tp(my_server_state_change, #{old_state => foo, next_state => bar})
+#+END_SRC
+
+The above line of code, when compiled in test mode, emits an event of
+/kind/ =my_server_state_change=, with some additional data specified
+in the second argument. Any event has a /kind/, which is an atom
+identifying type of the event. The second argument must be a map, and
+it can contain any data.
+
+In the release build this macro will become a [[https://github.com/tolbrino/hut/][hut]] log message with
+=debug= level. One can as well tune trace point log level:
+
+#+BEGIN_SRC erlang
+?tp(notice, my_server_state_change, #{old_state => foo, next_state => bar})
+#+END_SRC
+
+** Collecting trace
+
+Trace collector process must be started before running the test. Full
+workflow looks like this:
+
+#+BEGIN_SRC erlang
+ok = snabbkaffe:start_trace(),
+Return = RunYourCode(),
+Trace = snabbkaffe:collect_trace(),
+RunCheck1(Return, Trace),
+RunCheck2(Return, Trace),
+...
+RunCheckN(Return, Trace),
+snabbkaffe_collector:stop().
+#+END_SRC
+
+Note that =collect_trace= function is destructive: it cleans event
+buffer of the collector process.
+
+** Checking traces
+
+Trace is just a list of maps. Any standard function can work with
+it. Nonetheless, /Snabbkaffe/ comes with a few useful macros for trace
+analysis.
+
+Select events of certain kind:
+
+#+BEGIN_SRC erlang
+?of_kind(foo, Trace)
+#+END_SRC
+
+Extract values of a certain event field(s) to a list:
+
+#+BEGIN_SRC erlang
+[1, 2] = ?projection(foo, [#{foo => 1, quux => 1}, #{foo => 2}]),
+
+[{1, 1}, {2, 2}] = ?projection([foo, bar], [#{foo => 1, bar => 1}, #{foo => 2, bar => 2}])
+#+END_SRC
+
+Check that events occur in certain order, and throw an exception
+otherwise:
+
+#+BEGIN_SRC erlang
+?causality( #{kind := foo, foo := _A}
+          , #{kind := bar, foo := _A}
+          , Trace
+          )
+#+END_SRC
+
+First argument of =?causality= macro matches an event that is called
+the /cause/, and the second one matches so called /effect/. The above
+example checks events of kind =bar= occur only after corresponding
+events of kind =foo=.
+
+This macro can be extended with a guard as well. Here guard checks
+that two events actually make up a pair:
+
+#+BEGIN_SRC erlang
+?causality( #{kind := foo, foo := _A}
+          , #{kind := bar, foo := _B}
+          , _A + 1 =:= _B
+          , Trace
+          )
+#+END_SRC
+
+There is a version of the above macro that checks that all cause have
+an effect:
+
+#+BEGIN_SRC erlang
+?strict_causality( #{kind := foo, foo := _A}
+                 , #{kind := bar, foo := _A}
+                 , Trace
+                 )
+#+END_SRC
+
+Otherwise it works just like =?causality=.
+
+Both =?causality= and =?strict_causality= are actually based on a more
+powerful =?find_pairs= macro that is invoked like this:
+
+#+BEGIN_SRC erlang
+?find_pairs( Strict
+           , MatchCause
+           , MatchEffect
+          [, Guard]
+           , Trace
+           )
+#+END_SRC
+
+where =Strict= is a boolean that determines whever events that matched
+as =Effect= may preceed their cause.
+
+It returns a list of tuples of type =snabbkaffe:maybe_pair/0= that is
+defined like that:
+
+#+BEGIN_SRC erlang
+-type maybe_pair() :: {pair, event(), event()}
+                    | {singleton, event()}.
+#+END_SRC
+
+** Gathering it all together
+
+=?check_trace= is a convenience wrapper that starts the trace
+collector process, executes /run stage/, collects traces and then
+executes /check stage/:
+
+#+BEGIN_SRC erlang
+?check_trace(begin
+               RunStage
+             end,
+             fun(ReturnValue, Trace) ->
+                CheckStage
+             end).
+#+END_SRC
+
+Note: there is an extended version of this macro that takes size of
+the input data as the first argument. It can be used for benchmarking,
+more on that later.
+
+** PropER integration
+
+There are two useful macros for running /snabbkaffe/ together with [[https://proper-testing.github.io/][propER]]:
+
+#+BEGIN_SRC erlang
+?run_prop(Config, PROP)
+#+END_SRC
+
+where =PROP= is a proper spec looks something like this:
+
+#+BEGIN_SRC erlang
+?FORALL({Ret, L}, {term(), list()},
+   ?check_trace(
+      begin
+        RunStage
+      end,
+      fun(Return, Trace) ->
+        CheckStage
+      end))
+#+END_SRC
+
+There is another macro for the most common type of proper checks where
+property is a simple =?FORALL= clause (like in the above example).
+
+#+BEGIN_SRC erlang
+?forall_trace({Ret, L}, {term(), list()},
+              begin
+                RunStage
+              end,
+              fun(Return, Trace) ->
+                CheckStage
+              end)
+#+END_SRC
+
+It combines =?FORALL= and =?run_prop=.
+
+* Benchmarking
+
+/Snabbkaffe/ automatically adds timestamps to the events, which makes
+it a very unscientific benchmarking library.
+
+There is a family of functions for reporting metric data.
+
+Report a scalar metric called =my_metric1=:
+
+#+BEGIN_SRC erlang
+snabbkaffe:push_stat(my_metric1, 42),
+snabbkaffe:push_stats(my_metric1, [42, 43, 42]),
+%% Or even:
+snabbkaffe:push_stats(my_metric1, [{pair, Event1, Event2}, {pair, Event3, Event4}, ...]),
+#+END_SRC
+
+Sometimes it is entertaining to see how metric value depends on the
+size of the input data:
+
+#+BEGIN_SRC erlang
+snabbkaffe:push_stat(my_metric1, SizeOfData, 42),
+snabbkaffe:push_stats(my_metric1, SizeOfData, [42, 43, 42])
+#+END_SRC
+
+Metrics can be reported by calling =snabbkaffe:analyze_statistics/0=
+function that prints statistics for each reported metric, like in the
+above example:
+
+#+BEGIN_EXAMPLE
+-------------------------------
+foo_bar statistics:
+[{min,9.999999999999999e-6},
+ {max,9.999999999999999e-6},
+ {arithmetic_mean,1.000000000000002e-5},
+ {geometric_mean,1.0000000000000123e-5},
+ {harmonic_mean,9.999999999999997e-6},
+ {median,9.999999999999999e-6},
+ {variance,4.174340734454146e-40},
+ {standard_deviation,2.0431203426264804e-20},
+ {skewness,-0.9850375627355535},
+ {kurtosis,-2.0199000000000003},
+ {percentile,[{50,9.999999999999999e-6},
+              {75,9.999999999999999e-6},
+              {90,9.999999999999999e-6},
+              {95,9.999999999999999e-6},
+              {99,9.999999999999999e-6},
+              {999,9.999999999999999e-6}]},
+ {histogram,[{9.999999999999999e-6,100}]},
+ {n,100}]
+
+Statisitics of test
+100.479087 ^                                                                     *
+           |                                                               *
+           |                                                        *
+           |                                                  *
+           |
+           |                                            *
+           |                                     *
+           |
+           |                               *
+           |                         *
+           |                   *
+           |
+           |            *
+           |      *
+         0 +--------------------------------------------------------------------->
+           0                                                                  1100
+
+         N    min         max        avg
+       110 1.23984e+0 1.09774e+1 5.97581e+0
+       209 1.10121e+1 2.08884e+1 1.60011e+1
+       308 2.13004e+1 3.09071e+1 2.60224e+1
+       407 3.10212e+1 4.09074e+1 3.59904e+1
+       506 4.10095e+1 5.09904e+1 4.60456e+1
+       605 5.11370e+1 6.08557e+1 5.60354e+1
+       704 6.10493e+1 7.09071e+1 6.59642e+1
+       803 7.11237e+1 8.07733e+1 7.59588e+1
+       902 8.10944e+1 9.09766e+1 8.60179e+1
+      1001 9.10459e+1 9.99404e+1 9.54548e+1
+      1100 1.00004e+2 1.00939e+2 1.00479e+2
+#+END_EXAMPLE
+
+Note: =?run_prop= does this automatically.

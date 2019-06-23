@@ -2,10 +2,15 @@
 -define(SNABBKAFFE_HRL, true).
 
 -ifdef(TEST).
+-ifndef(SNK_COLLECTOR).
+-define(SNK_COLLECTOR, true).
+-endif. %% SNK_COLLECTOR
+-endif. %% TEST
+
+-ifdef(SNK_COLLECTOR).
+
+-define(tp(Level, Kind, Evt), snabbkaffe:tp(Kind, Evt)).
 -define(tp(Kind, Evt), snabbkaffe:tp(Kind, Evt)).
--else.
--define(tp(Kind, Evt), ?slog(debug, Evt #{kind => Kind})).
--endif.
 
 -define(of_kind(Kind, Trace),
         snabbkaffe:events_of_kind(Kind, Trace)).
@@ -83,4 +88,14 @@
 -define(forall_trace(Xs, Xg, Bucket, Run, Check),
         ?FORALL(Xs, Xg, ?check_trace(Bucket, Run, Check))).
 
--endif.
+-define(forall_trace(Xs, Xg, Run, Check),
+        ?forall_trace(Xs, Xg, undefined, Run, Check)).
+
+-else. %% SNK_COLLECTOR
+
+-define(tp(Level, Kind, Evt), ?slog(Level, Evt #{kind => Kind})).
+
+-define(tp(Kind, Evt), ?tp(debug, Kind, Evt)).
+
+-endif. %% SNK_COLLECTOR
+-endif. %% SNABBKAFFE_HRL

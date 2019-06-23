@@ -2,6 +2,9 @@
 
 -include_lib("kernel/include/logger.hrl").
 
+-include("snabbkaffe.hrl").
+-ifdef(SNK_COLLECTOR).
+
 %% API exports
 -export([ start_trace/0
         , collect_trace/0
@@ -30,8 +33,6 @@
 
 -export([ mk_all/1
         ]).
-
--include("snabbkaffe.hrl").
 
 %%====================================================================
 %% Types
@@ -129,7 +130,8 @@ find_pairs(Strict, CauseP, EffectP, Guard, L) ->
          , fun()
          ) -> boolean().
 run(MaybeBucket, Run, Check) ->
-  _ = snabbkaffe:collect_trace(),
+  start_trace(),
+  _ = collect_trace(),
   snabbkaffe:tp('$trace_begin', #{}),
   try
     Return = Run(),
@@ -460,3 +462,5 @@ transform_stats(Data) ->
             false
         end,
   lists:filtermap(Fun, Data).
+
+-endif. %% SNK_COLLECTOR
