@@ -12,6 +12,8 @@
         , plot/1
         , plot/2
         , draw/2
+        , draw/1
+        , visible/3
         ]).
 
 %%====================================================================
@@ -48,6 +50,10 @@ render(Cnv) ->
 draw(Ops, Cnv) ->
   lists:foldl(fun(F, Acc) -> F(Acc) end, Cnv, Ops).
 
+-spec draw([cont()]) -> canvas().
+draw(Ops) ->
+  draw(Ops, init()).
+
 -spec dimensions(canvas()) -> {vector(), vector()}.
 dimensions(Cnv) ->
   Fun = fun({X, Y}, _, {{Xm, Ym}, {XM, YM}}) ->
@@ -69,7 +75,7 @@ char(Pos, Char) ->
 line(Cnv, {X1, Y1}, {X2, Y2}, Char) ->
   X = X2 - X1,
   Y = Y2 - Y1,
-  N = max(abs(X), abs(Y)),
+  N = max(1, max(abs(X), abs(Y))),
   lists:foldl( fun(Pos, Cnv) -> char(Cnv, Pos, Char) end
              , Cnv
              , [{ X1 + round(X * I / N)
@@ -173,3 +179,21 @@ bound(Fun, Cfg, L) ->
     false ->
       N
   end.
+
+-spec visible(char(), string(), [term()]) -> iolist().
+visible(Char, Fmt, Args) ->
+  Str = string:lexemes(lists:flatten(io_lib:format(Fmt, Args)), "\n"),
+  Width = max(80, lists:max([length(I) || I <- Str])),
+  N = length(Str),
+  Text = [string({4, Y}, S, right)
+          || {Y, S} <- lists:zip( lists:seq(1, N)
+                                , lists:reverse(Str)
+                                )],
+  Cnv = draw([ asciiart:line({1, -1}, {Width, -1}, Char)
+             , asciiart:line({1, N + 2}, {Width, N + 2}, Char)
+             , asciiart:line({1, 0}, {1, N + 1}, Char)
+             , asciiart:line({2, 0}, {2, N + 1}, Char)
+             , asciiart:line({Width - 1, 0}, {Width - 1, N + 1}, Char)
+             , asciiart:line({Width, 0}, {Width, N + 1}, Char)
+             ] ++ Text),
+  [$\n, render(Cnv), $\n].

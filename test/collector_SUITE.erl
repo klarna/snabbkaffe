@@ -12,6 +12,7 @@ suite() ->
   [{timetrap, {seconds, 30}}].
 
 init_per_suite(Config) ->
+  snabbkaffe:fix_ct_logging(),
   Config.
 
 end_per_suite(_Config) ->
@@ -88,3 +89,82 @@ t_run_1(_Config) when is_list(_Config) ->
                  end
                )
    || I <- lists:seq(1, 1000)].
+
+prop1() ->
+  ?FORALL(
+     {Ret, L}, {term(), list()},
+     ?check_trace(
+        length(L),
+        begin
+          [?tp(foo, #{i => I}) || I <- L],
+          Ret
+        end,
+        fun(Ret1, Trace) ->
+            ?assertMatch(Ret, Ret1),
+            Foos = snabbkaffe:events_of_kind(foo, Trace),
+            ?assertMatch(L, snabbkaffe:projection(i, Foos)),
+            true
+        end)).
+
+t_proper(Config) when is_list(Config) ->
+  ?run_prop(Config, prop1()).
+
+t_forall_trace(Config0) when is_list(Config0) ->
+  Config = [{proper, #{ max_size => 100
+                      , numtests => 10000
+                      }} | Config0],
+  Prop =
+    ?forall_trace(
+       {Ret, L}, {term(), list()},
+       length(L), %% Bucket
+       begin
+         [?tp(foo, #{i => I}) || I <- L],
+         Ret
+       end,
+       fun(Ret1, Trace) ->
+           ?assertMatch(Ret, Ret1),
+           ?assertMatch(L, ?projection(i, ?of_kind(foo, Trace))),
+           true
+       end),
+  ?run_prop(Config, Prop).
+
+t_prop_fail_false(Config) when is_list(Config) ->
+  Prop = ?forall_trace(
+            X, list(),
+            42, %% Bucket
+            42,
+            fun(_, _) ->
+                false
+            end
+           ),
+  ?assertExit( fail
+             , ?run_prop(Config, Prop)
+             ).
+
+t_prop_run_exception(Config) when is_list(Config) ->
+  Prop = ?forall_trace(
+            X, list(),
+            42, %% Bucket
+            begin
+              1 = 2
+            end,
+            fun(_, _) ->
+                false
+            end
+           ),
+  ?assertExit( fail
+             , ?run_prop(Config, Prop)
+             ).
+
+t_prop_check_exception(Config) when is_list(Config) ->
+  Prop = ?forall_trace(
+            X, list(),
+            42, %% Bucket
+            ok,
+            fun(_, _) ->
+                1 = 2
+            end
+           ),
+  ?assertExit( fail
+             , ?run_prop(Config, Prop)
+             ).

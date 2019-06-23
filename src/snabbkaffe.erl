@@ -1,5 +1,7 @@
 -module(snabbkaffe).
 
+-include_lib("kernel/include/logger.hrl").
+
 %% API exports
 -export([ start_trace/0
         , collect_trace/0
@@ -9,7 +11,10 @@
         , push_stats/2
         , push_stats/3
         , analyze_statistics/0
+        , get_stats/0
         , run/3
+        , get_cfg/3
+        , fix_ct_logging/0
         ]).
 
 -export([ events_of_kind/2
@@ -79,7 +84,7 @@ collect_trace() ->
 
 -spec start_trace() -> ok.
 start_trace() ->
-  {ok, _} = snabbkaffe_collector:start_link(),
+  {ok, _} = snabbkaffe_collector:start(),
   ok.
 
 %% @doc Extract events of certain kind(s) from the trace
@@ -138,15 +143,15 @@ run(MaybeBucket, Run, Check) ->
     try
       Check(Return, Trace)
     catch EC1:Error1:Stack1 ->
-        log( "Check stage failed: ~p:~p~nStacktrace: ~p~n"
-           , [EC1, Error1, Stack1]
-           ),
+        ?LOG_CRITICAL( "Check stage failed: ~p:~p~nStacktrace: ~p~n"
+                     , [EC1, Error1, Stack1]
+                     ),
         false
     end
   catch EC:Error:Stack ->
-      log( "Run stage failed: ~p:~p~nStacktrace: ~p~n"
-         , [EC, Error, Stack]
-         ),
+      ?LOG_CRITICAL( "Run stage failed: ~p:~p~nStacktrace: ~p~n"
+                   , [EC, Error, Stack]
+                   ),
       false
   end.
 
@@ -168,6 +173,50 @@ mk_all(Module) ->
           "t_" ++ _ -> true;
           _         -> false
         end].
+
+-spec get_cfg([atom()], map() | proplists:proplist(), A) -> A.
+get_cfg([Key|T], Cfg, Default) when is_list(Cfg) ->
+  case lists:keyfind(Key, 1, Cfg) of
+    false ->
+      Default;
+    {_, Val} ->
+      case T of
+        [] -> Val;
+        _  -> get_cfg(T, Cfg, Default)
+      end
+  end;
+get_cfg(Key, Cfg, Default) when is_map(Cfg) ->
+  get_cfg(Key, maps:to_list(Cfg), Default).
+
+-spec fix_ct_logging() -> ok.
+fix_ct_logging() ->
+  %% Fix CT logging by overriding it
+  LogLevel = case os:getenv("LOGLEVEL") of
+               S when S =:= "debug";
+                      S =:= "info";
+                      S =:= "error";
+                      S =:= "critical";
+                      S =:= "alert";
+                      S =:= "emergency" ->
+                 list_to_atom(S);
+               _ ->
+                 notice
+             end,
+  case os:getenv("KEEP_CT_LOGGING") of
+    false ->
+      logger:set_primary_config(level, LogLevel),
+      logger:add_handler( full_log
+                        , logger_std_h
+                        , #{ formatter => {logger_formatter,
+                                           #{ depth => 100
+                                            , single_line => false
+                                            , template => [msg]
+                                            }}
+                           }
+                        );
+    _ ->
+      ok
+  end.
 
 %%====================================================================
 %% Statistical functions
@@ -199,8 +248,12 @@ push_stats(Metric, Pairs) ->
                , transform_stats(Pairs)
                ).
 
-analyze_statistics() ->
+get_stats() ->
   {ok, Stats} = gen_server:call(snabbkaffe_collector, get_stats),
+  Stats.
+
+analyze_statistics() ->
+  Stats = get_stats(),
   maps:map(fun analyze_metric/2, Stats),
   ok.
 
@@ -335,9 +388,9 @@ take(Pred, [A|T], Acc) ->
 analyze_metric(MetricName, DataPoints = [N|_]) when is_number(N) ->
   %% This is a simple metric:
   Stats = bear:get_statistics(DataPoints),
-  log( "-------------------------------~n"
-       "~p statistics:~n~p~n"
-     , [MetricName, Stats]);
+  ?LOG_NOTICE( "-------------------------------~n"
+               "~p statistics:~n~p~n"
+             , [MetricName, Stats]);
 analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
   %% This "clustering" is not scientific at all
   {XX, _} = lists:unzip(Datapoints),
@@ -367,27 +420,32 @@ analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
                            , lists:keysort(1, maps:to_list(Buckets0))
                            ),
   %% Print per-bucket stats:
-  log( "-------------------------------~n"
-       "~p statistics:~n"
-     , [MetricName]),
   PlotPoints = [{Bucket, proplists:get_value(arithmetic_mean, Stats)}
                 ||{Bucket, Stats} <- Buckets],
   Plot = asciiart:plot([{$*, PlotPoints}]),
-  log("~s~n", [asciiart:render(Plot)]),
-  log("         N    min         max        avg~n", []),
-  lists:foreach( fun({Key, Stats}) ->
-                     log( "~10b ~e ~e ~e~n"
-                        , [ Key
-                          , proplists:get_value(min, Stats) * 1.0
-                          , proplists:get_value(max, Stats) * 1.0
-                          , proplists:get_value(arithmetic_mean, Stats) * 1.0
-                          ])
-                 end
-               , Buckets
-               ),
+  BucketStatsToString =
+    fun({Key, Stats}) ->
+        io_lib:format( "~10b ~e ~e ~e~n"
+                     , [ Key
+                       , proplists:get_value(min, Stats) * 1.0
+                       , proplists:get_value(max, Stats) * 1.0
+                       , proplists:get_value(arithmetic_mean, Stats) * 1.0
+                       ])
+    end,
+  StatsStr = [ "Statisitics of ", atom_to_list(MetricName), $\n
+             , asciiart:render(Plot)
+             , "\n         N    min         max        avg\n"
+             , [BucketStatsToString(I) || I <- Buckets]
+             ],
+  ?LOG_NOTICE("~s~n", [StatsStr]),
   %% Print more elaborate info for the last bucket
-  {_, Last} = lists:last(Buckets),
-  log("Stats:~n~p~n", [Last]).
+  case length(Buckets) of
+    0 ->
+      ok;
+    _ ->
+      {_, Last} = lists:last(Buckets),
+      ?LOG_INFO("Stats:~n~p~n", [Last])
+  end.
 
 transform_stats(Data) ->
   Fun = fun({pair, #{ts := T1}, #{ts := T2}}) ->
@@ -402,6 +460,3 @@ transform_stats(Data) ->
             false
         end,
   lists:filtermap(Fun, Data).
-
-log(Format, Args) ->
-  io:format(user, Format, Args).
