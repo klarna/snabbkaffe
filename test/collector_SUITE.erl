@@ -34,7 +34,7 @@ groups() ->
 t_all_collected(_Config) when is_list(_Config) ->
   [?tp(foo, #{foo => I}) || I <- lists:seq(1, 1000)],
   Trace = snabbkaffe:collect_trace(),
-  ?assertMatch(1000, length(snabbkaffe:events_of_kind(foo, Trace))),
+  ?assertMatch(1000, length(?of_kind(foo, Trace))),
   ok.
 
 t_bar({init, Config}) ->
@@ -85,7 +85,7 @@ t_run_1(_Config) when is_list(_Config) ->
                  end
                , fun(Ret, Trace) ->
                      ?assertMatch(true, Ret),
-                     ?assertMatch(I, length(snabbkaffe:events_of_kind(foo, Trace)))
+                     ?assertMatch(I, length(?of_kind(foo, Trace)))
                  end
                )
    || I <- lists:seq(1, 1000)].
@@ -101,8 +101,8 @@ prop1() ->
         end,
         fun(Ret1, Trace) ->
             ?assertMatch(Ret, Ret1),
-            Foos = snabbkaffe:events_of_kind(foo, Trace),
-            ?assertMatch(L, snabbkaffe:projection(i, Foos)),
+            Foos = ?of_kind(foo, Trace),
+            ?assertMatch(L, ?projection(i, Foos)),
             true
         end)).
 
@@ -131,7 +131,6 @@ t_forall_trace(Config0) when is_list(Config0) ->
 t_prop_fail_false(Config) when is_list(Config) ->
   Prop = ?forall_trace(
             X, list(),
-            42, %% Bucket
             42,
             fun(_, _) ->
                 false

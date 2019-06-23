@@ -1,5 +1,9 @@
 -module(snabbkaffe_collector).
 
+-include("snabbkaffe.hrl").
+
+-ifdef(SNK_COLLECTOR).
+
 -behaviour(gen_server).
 
 %% API
@@ -23,7 +27,12 @@
 %%%===================================================================
 
 start() ->
-  gen_server:start({local, ?SERVER}, ?MODULE, [], []).
+  case whereis(?SERVER) of
+    undefined ->
+      gen_server:start({local, ?SERVER}, ?MODULE, [], []);
+    Pid ->
+      {ok, Pid}
+  end.
 
 stop() ->
   gen_server:stop(?SERVER).
@@ -85,3 +94,5 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+-endif. %% SNK_COLLECTOR
