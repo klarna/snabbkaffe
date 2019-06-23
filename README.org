@@ -175,7 +175,7 @@ There are two useful macros for running /snabbkaffe/ together with [[https://pro
 ?run_prop(Config, PROP)
 #+END_SRC
 
-where =PROP= is a proper spec looks something like this:
+where =PROP= is a proper spec that looks something like this:
 
 #+BEGIN_SRC erlang
 ?FORALL({Ret, L}, {term(), list()},
