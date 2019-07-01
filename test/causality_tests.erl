@@ -64,7 +64,7 @@ spng_success_test() ->
               ).
 
 spng_fail_test() ->
-  ?assertThrow( {panic, ?error_msg, [_]}
+  ?assertError( {panic, ?error_msg, [_]}
               , ?SPNG([?foo(1), ?bar(owo), foo, ?foo(owo), ?bar(1), bar])
               ).
 
@@ -118,7 +118,7 @@ scng_succ_test() ->
               ).
 
 scng_fail_test() ->
-  ?assertThrow( {panic, ?error_msg_cause, [_]}
+  ?assertError( {panic, ?error_msg_cause, [_]}
               , ?SCNG([?foo(1), foo])
               ).
 

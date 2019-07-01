@@ -56,16 +56,19 @@ workflow looks like this:
 #+BEGIN_SRC erlang
 ok = snabbkaffe:start_trace(),
 Return = RunYourCode(),
-Trace = snabbkaffe:collect_trace(),
+Trace = snabbkaffe:collect_trace(Timeout),
+snabbkaffe_collector:stop(),
 RunCheck1(Return, Trace),
 RunCheck2(Return, Trace),
 ...
-RunCheckN(Return, Trace),
-snabbkaffe_collector:stop().
+RunCheckN(Return, Trace).
 #+END_SRC
 
 Note that =collect_trace= function is destructive: it cleans event
-buffer of the collector process.
+buffer of the collector process. Its argument =Timeout= specifies how
+long the call will wait after the last event is received. Setting this
+parameter to a non-zero value is useful when /run stage/ starts some
+asynchronous tasks. By default =Timeout= is 0.
 
 ** Checking traces
 
@@ -163,9 +166,32 @@ executes /check stage/:
              end).
 #+END_SRC
 
-Note: there is an extended version of this macro that takes size of
-the input data as the first argument. It can be used for benchmarking,
-more on that later.
+There is an extended version of this macro that takes additional
+configuration as the first argument:
+
+#+BEGIN_SRC erlang
+?check_trace(#{timeout => Timeout, bucket => Bucket},
+             begin
+               RunStage
+             end,
+             fun(ReturnValue, Trace) ->
+                CheckStage
+             end).
+#+END_SRC
+
+or:
+
+#+BEGIN_SRC erlang
+?check_trace(Bucket,
+             begin
+               RunStage
+             end,
+             fun(ReturnValue, Trace) ->
+                CheckStage
+             end).
+#+END_SRC
+
+=Bucket= is a parameter used for benchmarking, more on that later.
 
 ** PropER integration
 

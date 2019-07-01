@@ -6,12 +6,12 @@
 -define(foo(A), #{foo => A, bar => bar}).
 
 -define(valid(T, L),
-        ?assertMatch( ok
+        ?assertMatch( true
                     , ?projection_complete(foo, [?foo(I) || I <- T], L)
                     )).
 
 -define(invalid(T, L),
-        ?assertThrow( {panic, "Trace is missing elements: ~p", _}
+        ?assertError( {panic, "Trace is missing elements: ~p", _}
                     , ?projection_complete(foo, [?foo(I) || I <- T], L)
                     )).
 
