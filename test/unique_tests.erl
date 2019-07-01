@@ -4,10 +4,10 @@
 -include_lib("snabbkaffe.hrl").
 
 -define(valid(L),
-        ?assertMatch(ok, snabbkaffe:unique(L))).
+        ?assertMatch(true, snabbkaffe:unique(L))).
 
 -define(invalid(L),
-        ?assertThrow( {panic, "Duplicate elements found: ~p", _}
+        ?assertError( {panic, "Duplicate elements found: ~p", _}
                     , snabbkaffe:unique(L)
                     )).
 

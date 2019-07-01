@@ -37,6 +37,35 @@ t_all_collected(_Config) when is_list(_Config) ->
   ?assertMatch(1000, length(?of_kind(foo, Trace))),
   ok.
 
+prop_async_collect() ->
+  ?FORALL(
+     {MaxWaitTime, Events},
+     ?LET(MaxWaitTime, range(1, 100),
+          {MaxWaitTime, [range(0, MaxWaitTime)]}),
+     ?check_trace(
+        #{timeout => MaxWaitTime + 10},
+        %% Emit events with some sleep in between:
+        [begin
+           Id = make_ref(),
+           spawn(fun() ->
+                     timer:sleep(Sleep),
+                     ?tp(async, #{id => Id})
+                 end),
+           Id
+         end || Sleep <- Events],
+        %% Check that all events have been collected:
+        fun(Ids, Trace) ->
+            ?projection_complete( id
+                                , ?of_kind(async, Trace)
+                                , Ids
+                                )
+        end)).
+
+t_async_collect(Config) when is_list(Config) ->
+  %% Verify that trace collection is delayed until last event (within
+  %% timeout) is received:
+  ?run_prop(Config, prop_async_collect()).
+
 t_bar({init, Config}) ->
   Config;
 t_bar({'end', _Config}) ->

@@ -9,7 +9,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start/0, stop/0, get_trace/0, get_stats/0]).
+-export([start/0, stop/0, get_trace/1, get_stats/0]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -20,8 +21,9 @@
                     | number().
 
 -record(s,
-        { trace = []  :: [snabbkaffe:timed_event()]
-        , stats = #{} :: #{snabbkaffe:metric() => datapoints()}
+        { trace = []        :: [snabbkaffe:timed_event()]
+        , stats = #{}       :: #{snabbkaffe:metric() => datapoints()}
+        , last_event_ts = 0 :: integer()
         }).
 
 %%%===================================================================
@@ -38,10 +40,6 @@ start() ->
 
 stop() ->
   gen_server:stop(?SERVER).
-
--spec get_trace() -> snabbkaffe:timed_trace().
-get_trace() ->
-  get_trace(0).
 
 -spec get_stats() -> datapoints().
 get_stats() ->
@@ -63,7 +61,9 @@ init([]) ->
   {ok, #s{}}.
 
 handle_cast(Evt, S = #s{trace = T0}) ->
-  {noreply, S#s{trace = [Evt|T0]}}.
+  {noreply, S#s{ trace         = [Evt|T0]
+               , last_event_ts = os:system_time()
+               }}.
 
 handle_call({push_stat, Metric, Stat}, _From, State0) ->
   Stats = maps:update_with( Metric
@@ -75,15 +75,31 @@ handle_call({push_stat, Metric, Stat}, _From, State0) ->
 handle_call(get_stats, _From, State) ->
   {reply, {ok, State#s.stats}, State};
 handle_call({get_trace, Timeout}, From, State) ->
-  timer:send_after(Timeout, {flush, From}),
+  timer:send_after(Timeout, {flush, From, Timeout}),
   {noreply, State};
 handle_call(_Request, _From, State) ->
   Reply = unknown_call,
   {reply, Reply, State}.
 
-handle_info({flush, To}, State = #s{trace = Trace}) ->
-  gen_server:reply(To, {ok, lists:reverse(Trace)}),
-  {noreply, State #s{trace = []}};
+handle_info(Event = {flush, To, Timeout}, State) ->
+  #s{ trace         = Trace
+    , last_event_ts = LastEventTs
+    } = State,
+  Dt = erlang:convert_time_unit( os:system_time() - LastEventTs
+                               , native
+                               , millisecond
+                               ),
+  if Dt >= Timeout ->
+      TraceEnd = #{ kind => '$trace_end'
+                  , ts   => LastEventTs
+                  },
+      Result = lists:reverse([TraceEnd|Trace]),
+      gen_server:reply(To, {ok, Result}),
+      {noreply, State #s{trace = []}};
+     true ->
+      timer:send_after(Timeout - Dt, Event),
+      {noreply, State}
+  end;
 handle_info(_, State) ->
   {noreply, State}.
 

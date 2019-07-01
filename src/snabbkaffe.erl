@@ -9,6 +9,7 @@
 %% API exports
 -export([ start_trace/0
         , collect_trace/0
+        , collect_trace/1
         , tp/2
         , push_stat/2
         , push_stat/3
@@ -65,8 +66,13 @@
 
 -type maybe(A) :: {just, A} | nothing.
 
+-type run_config() ::
+        #{ bucket  => integer()
+         , timeout => integer()
+         }.
+
 -export_type([ kind/0, timestamp/0, event/0, timed_event/0, trace/0
-             , maybe_pair/0, maybe/1, metric/0
+             , maybe_pair/0, maybe/1, metric/0, run_config/0
              ]).
 
 -define(SERVER, snabbkaffe_collector).
@@ -84,7 +90,11 @@ tp(Kind, Event) ->
 
 -spec collect_trace() -> trace().
 collect_trace() ->
-  snabbkaffe_collector:get_trace().
+  collect_trace(0).
+
+-spec collect_trace(integer()) -> trace().
+collect_trace(Timeout) ->
+  snabbkaffe_collector:get_trace(Timeout).
 
 -spec start_trace() -> ok.
 start_trace() ->
@@ -128,25 +138,29 @@ find_pairs(Strict, CauseP, EffectP, Guard, L) ->
   L1 = lists:filtermap(Fun, L),
   do_find_pairs(Strict, Guard, L1).
 
--spec run( number() | undefined
+-spec run( run_config() | integer()
          , fun()
          , fun()
          ) -> boolean().
-run(MaybeBucket, Run, Check) ->
+run(Bucket, Run, Check) when is_integer(Bucket) ->
+  run(#{bucket => Bucket}, Run, Check);
+run(Config, Run, Check) ->
+  Timeout = maps:get(timeout, Config, 0),
+  Bucket  = maps:get(bucket, Config, undefined),
   start_trace(),
-  _ = collect_trace(),
+  %% Wipe the trace buffer clean:
+  _ = collect_trace(0),
   snabbkaffe:tp('$trace_begin', #{}),
   try
-    Return = Run(),
-    Trace = snabbkaffe:collect_trace(),
+    Return  = Run(),
+    Trace   = collect_trace(Timeout),
     RunTime = ?find_pairs( false
                          , #{kind := '$trace_begin'}
                          , #{kind := '$trace_end'}
                          , Trace
                          ),
-    push_stats(run_time, MaybeBucket, RunTime),
-    try
-      Check(Return, Trace)
+    push_stats(run_time, Bucket, RunTime),
+    try Check(Return, Trace)
     catch EC1:Error1:Stack1 ->
         ?log(critical, "Check stage failed: ~p:~p~nStacktrace: ~p~n"
                      , [EC1, Error1, Stack1]
@@ -298,7 +312,7 @@ causality(Strict, CauseP, EffectP, Guard, Trace) ->
   end,
   ok.
 
--spec unique(trace()) -> ok.
+-spec unique(trace()) -> true.
 unique(Trace) ->
   Trace1 = erase_timestamps(Trace),
   Fun = fun(A, Acc) -> inc_counters([A], Acc) end,
@@ -306,18 +320,18 @@ unique(Trace) ->
   Dupes = [E || E = {_, Val} <- maps:to_list(Counters), Val > 1],
   case Dupes of
     [] ->
-      ok;
+      true;
     _ ->
       panic("Duplicate elements found: ~p", [Dupes])
   end.
 
--spec projection_complete(atom(), trace(), [term()]) -> ok.
+-spec projection_complete(atom(), trace(), [term()]) -> true.
 projection_complete(Field, Trace, Expected) ->
   Got = ordsets:from_list([Val || #{Field := Val} <- Trace]),
   Expected1 = ordsets:from_list(Expected),
   case ordsets:subtract(Expected1, Got) of
     [] ->
-      ok;
+      true;
     Missing ->
       panic("Trace is missing elements: ~p", [Missing])
   end.
@@ -346,7 +360,7 @@ pair_max_depth(Pairs) ->
 
 -spec panic(string(), [term()]) -> no_return().
 panic(FmtString, Args) ->
-  throw({panic, FmtString, Args}).
+  error({panic, FmtString, Args}).
 
 -spec do_find_pairs( boolean()
                    , fun((event(), event()) -> boolean())
