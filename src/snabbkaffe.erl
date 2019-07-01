@@ -1,9 +1,10 @@
 -module(snabbkaffe).
 
--include_lib("kernel/include/logger.hrl").
+-ifndef(SNK_COLLECTOR).
+-define(SNK_COLLECTOR, true).
+-endif.
 
 -include("snabbkaffe.hrl").
--ifdef(SNK_COLLECTOR).
 
 %% API exports
 -export([ start_trace/0
@@ -32,6 +33,7 @@
         ]).
 
 -export([ mk_all/1
+        , retry/3
         ]).
 
 %%====================================================================
@@ -145,13 +147,13 @@ run(MaybeBucket, Run, Check) ->
     try
       Check(Return, Trace)
     catch EC1:Error1:Stack1 ->
-        ?LOG_CRITICAL( "Check stage failed: ~p:~p~nStacktrace: ~p~n"
+        ?log(critical, "Check stage failed: ~p:~p~nStacktrace: ~p~n"
                      , [EC1, Error1, Stack1]
                      ),
         false
     end
   catch EC:Error:Stack ->
-      ?LOG_CRITICAL( "Run stage failed: ~p:~p~nStacktrace: ~p~n"
+      ?log(critical, "Run stage failed: ~p:~p~nStacktrace: ~p~n"
                    , [EC, Error, Stack]
                    ),
       false
@@ -175,6 +177,22 @@ mk_all(Module) ->
           "t_" ++ _ -> true;
           _         -> false
         end].
+
+-spec retry(integer(), non_neg_integer(), fun(() -> Ret)) -> Ret.
+retry(_, 0, Fun) ->
+  Fun();
+retry(Timeout, N, Fun) ->
+  try Fun()
+  catch
+    EC:Err:Stack ->
+      timer:sleep(Timeout),
+      ?slog(debug, #{ what => retry_fun
+                    , ec => EC
+                    , error => Err
+                    , stacktrace => Stack
+                    }),
+      retry(Timeout, N - 1, Fun)
+  end.
 
 -spec get_cfg([atom()], map() | proplists:proplist(), A) -> A.
 get_cfg([Key|T], Cfg, Default) when is_list(Cfg) ->
@@ -390,7 +408,7 @@ take(Pred, [A|T], Acc) ->
 analyze_metric(MetricName, DataPoints = [N|_]) when is_number(N) ->
   %% This is a simple metric:
   Stats = bear:get_statistics(DataPoints),
-  ?LOG_NOTICE( "-------------------------------~n"
+  ?log(notice, "-------------------------------~n"
                "~p statistics:~n~p~n"
              , [MetricName, Stats]);
 analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
@@ -439,14 +457,14 @@ analyze_metric(MetricName, Datapoints = [{_, _}|_]) ->
              , "\n         N    min         max        avg\n"
              , [BucketStatsToString(I) || I <- Buckets]
              ],
-  ?LOG_NOTICE("~s~n", [StatsStr]),
+  ?log(notice, "~s~n", [StatsStr]),
   %% Print more elaborate info for the last bucket
   case length(Buckets) of
     0 ->
       ok;
     _ ->
       {_, Last} = lists:last(Buckets),
-      ?LOG_INFO("Stats:~n~p~n", [Last])
+      ?log(info, "Stats:~n~p~n", [Last])
   end.
 
 transform_stats(Data) ->
@@ -462,5 +480,3 @@ transform_stats(Data) ->
             false
         end,
   lists:filtermap(Fun, Data).
-
--endif. %% SNK_COLLECTOR

@@ -1,15 +1,9 @@
-{application, snabbkaffe,
- [{description, "An OTP library"},
-  {vsn, "0.1.0"},
-  {registered, []},
-  {applications,
-   [kernel,
-    stdlib
-   ]},
-  {env,[]},
-  {modules, []},
-
-  {maintainers, []},
-  {licenses, ["Apache 2.0"]},
-  {links, []}
- ]}.
+{application,snabbkaffe,
+             [{description,"Simple trace-based testing framework"},
+              {vsn,"0.0.1"},
+              {registered,[]},
+              {applications,[kernel,stdlib,hut]},
+              {env,[]},
+              {modules,[]},
+              {licenses,["Apache 2.0"]},
+              {links,[{"Github","https://github.com/k32/snabbkaffe"}]}]}.

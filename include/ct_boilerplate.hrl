@@ -36,4 +36,5 @@ end_per_testcase(TestCase, Config) ->
   ok.
 
 all() ->
+  application:ensure_all_started(snabbkaffe),
   snabbkaffe:mk_all(?MODULE).
