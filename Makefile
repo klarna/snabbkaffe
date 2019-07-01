@@ -1,2 +1,2 @@
 all:
-	rebar3 do dialyzer,eunit
+	rebar3 do dialyzer,eunit,ct

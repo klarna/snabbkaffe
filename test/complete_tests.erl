@@ -7,12 +7,12 @@
 
 -define(valid(T, L),
         ?assertMatch( ok
-                    , snabbkaffe:field_complete(foo, [?foo(I) || I <- T], L)
+                    , ?projection_complete(foo, [?foo(I) || I <- T], L)
                     )).
 
 -define(invalid(T, L),
         ?assertThrow( {panic, "Trace is missing elements: ~p", _}
-                    , snabbkaffe:field_complete(foo, [?foo(I) || I <- T], L)
+                    , ?projection_complete(foo, [?foo(I) || I <- T], L)
                     )).
 
 complete_succ_test() ->
