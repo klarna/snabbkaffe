@@ -1,8 +1,10 @@
 -module(snabbkaffe_collector).
 
--include("snabbkaffe.hrl").
+-ifndef(SNK_COLLECTOR).
+-define(SNK_COLLECTOR, true).
+-endif.
 
--ifdef(SNK_COLLECTOR).
+-include("snabbkaffe.hrl").
 
 -behaviour(gen_server).
 
@@ -94,5 +96,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
--endif. %% SNK_COLLECTOR

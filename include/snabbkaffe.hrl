@@ -1,6 +1,8 @@
 -ifndef(SNABBKAFFE_HRL).
 -define(SNABBKAFFE_HRL, true).
 
+-include_lib("hut/include/hut.hrl").
+
 -ifdef(TEST).
 -ifndef(SNK_COLLECTOR).
 -define(SNK_COLLECTOR, true).
@@ -90,6 +92,8 @@
 
 -define(forall_trace(Xs, Xg, Run, Check),
         ?forall_trace(Xs, Xg, undefined, Run, Check)).
+
+-define(retry(Timeout, N, Fun), snabbkaffe:retry(Timeout, N, fun() -> Fun end)).
 
 -else. %% SNK_COLLECTOR
 
