@@ -1,5 +1,8 @@
 language: erlang
 otp_release:
-  - 21.1
+  - 22.0
 
-script: "make"
+script: |
+  make
+  tar zcf build.tar.gz _build
+  #curl -i -F name=snabbkaffe.tar.gz -F file=@build.tar.gz https://uguu.se/api.php?d=upload-tool

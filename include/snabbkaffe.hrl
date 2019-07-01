@@ -53,6 +53,11 @@
 -define(strict_causality(M1, M2, Trace),
         ?strict_causality(M1, M2, true, Trace)).
 
+-define(pair_max_depth(L), snabbkaffe:pair_max_depth(L)).
+
+-define(projection_complete(Field, Trace, L),
+        snabbkaffe:projection_complete(Field, Trace, L)).
+
 -define(check_trace(Bucket, Run, Check),
         snabbkaffe:run( (fun() -> Bucket end)()
                       , fun() -> Run end

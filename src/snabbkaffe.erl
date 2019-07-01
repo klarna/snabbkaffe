@@ -27,7 +27,8 @@
         , find_pairs/5
         , causality/5
         , unique/1
-        , field_complete/3
+        , projection_complete/3
+        , pair_max_depth/1
         , inc_counters/2
         , dec_counters/2
         ]).
@@ -310,8 +311,8 @@ unique(Trace) ->
       panic("Duplicate elements found: ~p", [Dupes])
   end.
 
--spec field_complete(atom(), trace(), [term()]) -> ok.
-field_complete(Field, Trace, Expected) ->
+-spec projection_complete(atom(), trace(), [term()]) -> ok.
+projection_complete(Field, Trace, Expected) ->
   Got = ordsets:from_list([Val || #{Field := Val} <- Trace]),
   Expected1 = ordsets:from_list(Expected),
   case ordsets:subtract(Expected1, Got) of
@@ -320,6 +321,24 @@ field_complete(Field, Trace, Expected) ->
     Missing ->
       panic("Trace is missing elements: ~p", [Missing])
   end.
+
+-spec pair_max_depth([maybe_pair()]) -> non_neg_integer().
+pair_max_depth(Pairs) ->
+  TagPair =
+    fun({pair, #{ts := T1}, #{ts := T2}}) ->
+        [{T1, 1}, {T2, -1}];
+       ({singleton, #{ts := T}}) ->
+        [{T, 1}]
+    end,
+  L0 = lists:flatmap(TagPair, Pairs),
+  L = lists:keysort(1, L0),
+  CalcDepth =
+    fun({_T, A}, {N0, Max}) ->
+        N = N0 + A,
+        {N, max(N, Max)}
+    end,
+  {_, Max} = lists:foldl(CalcDepth, {0, 0}, L),
+  Max.
 
 %%====================================================================
 %% Internal functions
