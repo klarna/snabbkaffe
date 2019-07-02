@@ -76,7 +76,7 @@
                                "dumb" -> [nocolors];
                                _      -> []
                              end,
-             __SnkPrint = fun logger:notice/2,
+             __SnkPrint = fun(Fmt, Args) -> ?log(notice, Fmt, Args) end,
              __SnkRet = proper:quickcheck( ?TIMEOUT(__SnkTimeout, PROPERTY)
                                          , [ {numtests, __SnkNumtests}
                                            , {max_size, __SnkMaxSize}
@@ -87,7 +87,7 @@
                true ->
                  ok;
                Error ->
-                 ?LOG_CRITICAL("!!!! Proper test failed: ~p~n", [Error]),
+                 ?log(critical, "!!!! Proper test failed: ~p~n", [Error]),
                  exit(fail)
              end
          end)()).
