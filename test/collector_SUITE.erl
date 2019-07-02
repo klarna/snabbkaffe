@@ -37,6 +37,17 @@ t_all_collected(_Config) when is_list(_Config) ->
   ?assertMatch(1000, length(?of_kind(foo, Trace))),
   ok.
 
+t_check_trace(_Config) when is_list(_Config) ->
+  ?check_trace(
+     42,
+     fun(Ret, Trace) ->
+         ?assertMatch(42, Ret),
+         ?assertMatch( [ #{kind := '$trace_begin'}
+                       , #{kind := '$trace_end'}
+                       ]
+                     , Trace)
+     end).
+
 prop_async_collect() ->
   ?FORALL(
      {MaxWaitTime, Events},
