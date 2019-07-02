@@ -182,7 +182,7 @@ bound(Fun, Cfg, L) ->
 
 -spec visible(char(), string(), [term()]) -> iolist().
 visible(Char, Fmt, Args) ->
-  Str = string:lexemes(lists:flatten(io_lib:format(Fmt, Args)), "\n"),
+  Str = string:split(lists:flatten(io_lib:format(Fmt, Args)), "\n", all),
   Width = max(80, lists:max([length(I) || I <- Str])),
   N = length(Str),
   Text = [string({4, Y}, S, right)

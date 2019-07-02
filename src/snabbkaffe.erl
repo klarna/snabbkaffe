@@ -78,6 +78,18 @@
 -define(SERVER, snabbkaffe_collector).
 
 %%====================================================================
+%% Macros
+%%====================================================================
+
+-ifdef(OTP_RELEASE).
+-define(BIND_STACKTRACE(V), : V).
+-define(GET_STACKTRACE(V), ok).
+-else.
+-define(BIND_STACKTRACE(V),).
+-define(GET_STACKTRACE(V), V = erlang:get_stacktrace()).
+-endif.
+
+%%====================================================================
 %% API functions
 %%====================================================================
 
@@ -161,13 +173,15 @@ run(Config, Run, Check) ->
                          ),
     push_stats(run_time, Bucket, RunTime),
     try Check(Return, Trace)
-    catch EC1:Error1:Stack1 ->
+    catch EC1:Error1 ?BIND_STACKTRACE(Stack1) ->
+        ?GET_STACKTRACE(Stack1),
         ?log(critical, "Check stage failed: ~p:~p~nStacktrace: ~p~n"
                      , [EC1, Error1, Stack1]
                      ),
         false
     end
-  catch EC:Error:Stack ->
+  catch EC:Error ?BIND_STACKTRACE(Stack) ->
+      ?GET_STACKTRACE(Stack),
       ?log(critical, "Run stage failed: ~p:~p~nStacktrace: ~p~n"
                    , [EC, Error, Stack]
                    ),
@@ -199,7 +213,8 @@ retry(_, 0, Fun) ->
 retry(Timeout, N, Fun) ->
   try Fun()
   catch
-    EC:Err:Stack ->
+    EC:Err ?BIND_STACKTRACE(Stack) ->
+      ?GET_STACKTRACE(Stack),
       timer:sleep(Timeout),
       ?slog(debug, #{ what => retry_fun
                     , ec => EC
@@ -224,6 +239,8 @@ get_cfg(Key, Cfg, Default) when is_map(Cfg) ->
   get_cfg(Key, maps:to_list(Cfg), Default).
 
 -spec fix_ct_logging() -> ok.
+-ifdef(OTP_RELEASE).
+%% OTP21+, we have logger:
 fix_ct_logging() ->
   %% Fix CT logging by overriding it
   LogLevel = case os:getenv("LOGLEVEL") of
@@ -252,6 +269,10 @@ fix_ct_logging() ->
     _ ->
       ok
   end.
+-else.
+fix_ct_logging() ->
+  ok.
+-endif.
 
 %%====================================================================
 %% Statistical functions
