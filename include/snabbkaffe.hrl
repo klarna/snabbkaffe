@@ -65,7 +65,7 @@
                       )).
 
 -define(check_trace(RUN, CHECK),
-        ?check_trace(undefined, RUN, CHECK)).
+        ?check_trace(#{}, RUN, CHECK)).
 
 -define(run_prop(CONFIG, PROPERTY),
         (fun() ->
@@ -96,7 +96,7 @@
         ?FORALL(Xs, Xg, ?check_trace(Bucket, Run, Check))).
 
 -define(forall_trace(Xs, Xg, Run, Check),
-        ?forall_trace(Xs, Xg, undefined, Run, Check)).
+        ?forall_trace(Xs, Xg, #{}, Run, Check)).
 
 -define(retry(Timeout, N, Fun), snabbkaffe:retry(Timeout, N, fun() -> Fun end)).
 
