@@ -22,8 +22,18 @@
 
 -define(find_pairs(Strict, M1, M2, Guard, Trace),
         snabbkaffe:find_pairs( Strict
-                             , fun(M1) -> true end
-                             , fun(M2) -> true end
+                             , fun(__SnkArg) ->
+                                   case __SnkArg of
+                                     M1 -> true;
+                                     _  -> false
+                                   end
+                               end
+                             , fun(__SnkArg) ->
+                                   case __SnkArg of
+                                     M2 -> true;
+                                     _  -> false
+                                   end
+                               end
                              , fun(M1, M2) -> (Guard) end
                              , (Trace)
                              )).
@@ -97,6 +107,27 @@
 
 -define(forall_trace(Xs, Xg, Run, Check),
         ?forall_trace(Xs, Xg, #{}, Run, Check)).
+
+-define(give_or_take(Expected, Deviation, Value),
+        (fun() ->
+             __SnkValue = (Value),
+             __SnkExpected = (Expected),
+             __SnkDeviation = (Deviation),
+             case catch erlang:abs(__SnkValue - __SnkExpected) of
+                 __SnkDelta when is_integer(__SnkDelta),
+                                 __SnkDelta =< __SnkDeviation ->
+                 true;
+               _ ->
+                 erlang:error({assertGiveOrTake,
+                               [ {module, ?MODULE}
+                               , {line, ?LINE}
+                               , {expected, __SnkExpected}
+                               , {value, __SnkValue}
+                               , {expression, (??Value)}
+                               , {max_deviation, __SnkDeviation}
+                               ]})
+             end
+         end)()).
 
 -define(retry(Timeout, N, Fun), snabbkaffe:retry(Timeout, N, fun() -> Fun end)).
 

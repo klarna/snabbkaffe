@@ -95,7 +95,7 @@
 
 -spec tp(atom(), map()) -> ok.
 tp(Kind, Event) ->
-  Event1 = Event #{ ts   => os:system_time()
+  Event1 = Event #{ ts   => erlang:monotonic_time()
                   , kind => Kind
                   },
   gen_server:cast(?SERVER, Event1).
