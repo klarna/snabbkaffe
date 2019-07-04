@@ -1,6 +1,6 @@
 {application,snabbkaffe,
              [{description,"Simple trace-based testing framework"},
-              {vsn,"0.0.2"},
+              {vsn,"0.2.0"},
               {registered,[]},
               {applications,[kernel,stdlib,hut]},
               {env,[]},
