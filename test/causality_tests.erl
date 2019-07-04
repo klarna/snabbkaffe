@@ -90,6 +90,14 @@ fpng_success_test() ->
                       ])
               ).
 
+fpng_scoped_test() ->
+  %% Test that match specs in ?find_pairs capture variables from the
+  %% context:
+  _A = owo,
+  ?assertMatch( [?pair(owo)]
+              , ?FPNG([?foo(1), ?foo(owo), foo, ?bar(owo), ?bar(1), bar])
+              ).
+
 -define(pair_inc(A), {pair, #{foo := A}, #{bar := A + 1}}).
 
 spwg_success_test() ->

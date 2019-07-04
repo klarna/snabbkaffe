@@ -62,7 +62,7 @@ init([]) ->
 
 handle_cast(Evt, S = #s{trace = T0}) ->
   {noreply, S#s{ trace         = [Evt|T0]
-               , last_event_ts = os:system_time()
+               , last_event_ts = erlang:monotonic_time()
                }}.
 
 handle_call({push_stat, Metric, Stat}, _From, State0) ->
@@ -85,7 +85,7 @@ handle_info(Event = {flush, To, Timeout}, State) ->
   #s{ trace         = Trace
     , last_event_ts = LastEventTs
     } = State,
-  Dt = erlang:convert_time_unit( os:system_time() - LastEventTs
+  Dt = erlang:convert_time_unit( erlang:monotonic_time() - LastEventTs
                                , native
                                , millisecond
                                ),
@@ -97,7 +97,7 @@ handle_info(Event = {flush, To, Timeout}, State) ->
       gen_server:reply(To, {ok, Result}),
       {noreply, State #s{trace = []}};
      true ->
-      timer:send_after(Timeout - Dt, Event),
+      timer:send_after(Timeout, Event),
       {noreply, State}
   end;
 handle_info(_, State) ->
