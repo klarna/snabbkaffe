@@ -1,6 +1,6 @@
 #+TITLE: Snabbkaffe
 
-[[https://travis-ci.org/k32/snabbkaffe.svg?branch=master]]
+[[https://travis-ci.org/klarna/snabbkaffe.svg?branch=master]]
 
 * Introduction
 
@@ -192,6 +192,24 @@ or:
 #+END_SRC
 
 =Bucket= is a parameter used for benchmarking, more on that later.
+
+** Blocking execution of testcase until certain event is emitted
+
+Even though philosophy of this library lies in separation of run and
+verify stages, sometimes the former needs to be somewhat aware of the
+events. For example, the testcase may need to wait for asynchronous
+initialization of some resource.
+
+In this case =?block_until= macro should be used. It allows the
+testcase to peek into the trace. Example usage:
+
+#+BEGIN_SRC erlang
+{ok, Pid} = foo:async_init(),
+?block_until(#{kind => foo_init_complete, pid := Pid}, Timeout), %% Timeout is optional, defaults to `infinity'
+do_stuff(Pid)
+#+END_SRC
+
+This macro returns either the first matched event or atom =timeout=.
 
 ** PropER integration
 
