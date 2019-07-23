@@ -207,3 +207,71 @@ t_prop_check_exception(Config) when is_list(Config) ->
   ?assertExit( fail
              , ?run_prop(Config, Prop)
              ).
+
+t_block_until(Config) when is_list(Config) ->
+  Kind = foo,
+  ?check_trace(
+     begin
+       spawn(fun() ->
+                 timer:sleep(100),
+                 %% This event should not be matched (kind =/= Kind):
+                 ?tp(bar, #{data => 44}),
+                 %% This event should not be matched (data is too small):
+                 ?tp(foo, #{data => 1}),
+                 %% This one should be matched:
+                 ?tp(foo, #{data => 43}),
+                 %% This one matches the pattern but is ignored, the
+                 %% previous one should already unlock the caller:
+                 ?tp(foo, #{data => 44})
+             end),
+       %% Note that here `Kind' variable is captured from the context
+       %% (and used to match events) and `Data' is bound in the guard:
+       ?block_until(#{kind := Kind, data := Data} when Data > 42)
+     end,
+     fun(Ret, _Trace) ->
+         ?assertMatch( #{kind := foo, data := 43}
+                     , Ret
+                     )
+     end).
+
+t_block_until_from_past(Config) when is_list(Config) ->
+  Kind = foo,
+  ?check_trace(
+     begin
+       %% This one matches the pattern but is ignored, the
+       %% next one should unlock the caller:
+       ?tp(foo, #{data => 43}),
+       %% This one should be matched:
+       ?tp(foo, #{data => 44}),
+       %% This event should not be matched (kind =/= Kind):
+       ?tp(bar, #{data => 1}),
+       %% This event should not be matched (data is too small):
+       ?tp(foo, #{data => 1}),
+       ?block_until(#{kind := Kind, data := Data} when Data > 42)
+     end,
+     fun(Ret, _Trace) ->
+         ?assertMatch( #{kind := foo, data := 44}
+                     , Ret
+                     )
+     end).
+
+t_block_until_timeout(Config) when is_list(Config) ->
+  ?check_trace(
+     begin
+       ?block_until(#{kind := foo}, 100)
+     end,
+     fun(Ret, _Trace) ->
+         ?assertMatch(timeout, Ret)
+     end).
+
+t_block_until_past_limit(Config) when is_list(Config) ->
+  ?check_trace(
+     begin
+       %% This event should be ignored, it's too far back in time:
+       ?tp(foo, #{}),
+       timer:sleep(200),
+       ?block_until(#{kind := foo}, 100, 100)
+     end,
+     fun(Ret, _Trace) ->
+         ?assertMatch(timeout, Ret)
+     end).

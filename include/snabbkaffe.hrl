@@ -131,6 +131,25 @@
 
 -define(retry(Timeout, N, Fun), snabbkaffe:retry(Timeout, N, fun() -> Fun end)).
 
+-define(block_until(Match, Timeout, BackInTime),
+        (fun() ->
+             __SnkPredFun = fun(__SnkEvt) ->
+                                case __SnkEvt of
+                                  Match ->
+                                    true;
+                                  _ ->
+                                    false
+                                end
+                            end,
+             snabbkaffe:block_until(__SnkPredFun, (Timeout), (BackInTime))
+         end)()).
+
+-define(block_until(Match, Timeout),
+        ?block_until(Match, (Timeout), 100)).
+
+-define(block_until(Match),
+        ?block_until(Match, infinity)).
+
 -else. %% SNK_COLLECTOR
 
 -define(tp(Level, Kind, Evt), ?slog(Level, Evt #{kind => Kind})).
