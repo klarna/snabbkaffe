@@ -54,7 +54,7 @@ get_stats() ->
 
 -spec get_trace(integer()) -> snabbkaffe:timed_trace().
 get_trace(Timeout) ->
-  {ok, Trace} = gen_server:call(?SERVER, {get_trace, Timeout}),
+  {ok, Trace} = gen_server:call(?SERVER, {get_trace, Timeout}, infinity),
   Trace.
 
 -spec block_until(snabbkaffe:predicate(), timeout(), timeout()) ->

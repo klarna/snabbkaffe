@@ -68,6 +68,9 @@
 -define(projection_complete(Field, Trace, L),
         snabbkaffe:projection_complete(Field, Trace, L)).
 
+-define(projection_is_subset(Field, Trace, L),
+        snabbkaffe:projection_is_subset(Field, Trace, L)).
+
 -define(check_trace(Bucket, Run, Check),
         snabbkaffe:run( (fun() -> Bucket end)()
                       , fun() -> Run end

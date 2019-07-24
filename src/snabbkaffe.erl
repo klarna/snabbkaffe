@@ -31,6 +31,7 @@
         , causality/5
         , unique/1
         , projection_complete/3
+        , projection_is_subset/3
         , pair_max_depth/1
         , inc_counters/2
         , dec_counters/2
@@ -388,6 +389,17 @@ projection_complete(Field, Trace, Expected) ->
       true;
     Missing ->
       panic("Trace is missing elements: ~p", [Missing])
+  end.
+
+-spec projection_is_subset(atom(), trace(), [term()]) -> true.
+projection_is_subset(Field, Trace, Expected) ->
+  Got = ordsets:from_list([Val || #{Field := Val} <- Trace]),
+  Expected1 = ordsets:from_list(Expected),
+  case ordsets:subtract(Got, Expected1) of
+    [] ->
+      true;
+    Unexpected ->
+      panic("Trace contains unexpected elements: ~p", [Unexpected])
   end.
 
 -spec pair_max_depth([maybe_pair()]) -> non_neg_integer().
