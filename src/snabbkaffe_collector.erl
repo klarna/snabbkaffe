@@ -62,7 +62,7 @@ get_trace(Timeout) ->
 block_until(Predicate, Timeout, BackInTime0) ->
   Infimum = case BackInTime0 of
               infinity ->
-                0;
+                erlang:system_info(start_time);
               _ ->
                 BackInTime = erlang:convert_time_unit( BackInTime0
                                                      , millisecond

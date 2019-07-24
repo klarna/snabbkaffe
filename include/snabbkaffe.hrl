@@ -153,6 +153,17 @@
 -define(block_until(Match),
         ?block_until(Match, infinity)).
 
+-define(split_trace_at(Pattern, Trace),
+        (fun() ->
+             __SnkSplitFun = fun(__SnkSplitArg) ->
+                                 case __SnkSplitArg of
+                                   Pattern -> false;
+                                   _       -> true
+                                 end
+                             end,
+             lists:splitwith(__SnkSplitFun, (Trace))
+         end)()).
+
 -else. %% SNK_COLLECTOR
 
 -define(tp(Level, Kind, Evt), ?slog(Level, Evt #{kind => Kind})).
