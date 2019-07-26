@@ -147,6 +147,25 @@
              snabbkaffe:block_until(__SnkPredFun, (Timeout), (BackInTime))
          end)()).
 
+-define(wait_async_action(Action, Match, Timeout),
+        (fun() ->
+             __SnkPredFun = fun(__SnkEvt) ->
+                                case __SnkEvt of
+                                  Match ->
+                                    true;
+                                  _ ->
+                                    false
+                                end
+                            end,
+             snabbkaffe:wait_async_action( fun() -> Action end
+                                         , __SnkPredFun
+                                         , (Timeout)
+                                         )
+         end)()).
+
+-define(wait_async_action(Action, Match),
+        ?wait_async_action(Action, Match, infinity)).
+
 -define(block_until(Match, Timeout),
         ?block_until(Match, (Timeout), 100)).
 

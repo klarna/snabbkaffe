@@ -9,21 +9,32 @@
 -behaviour(gen_server).
 
 %% API
--export([start/0, stop/0, get_trace/1, get_stats/0, block_until/3]).
+-export([ start/0
+        , stop/0
+        , get_trace/1
+        , get_stats/0
+        , block_until/3
+        , notify_on_event/3
+        ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+-export_type([async_action/0]).
 
 -define(SERVER, ?MODULE).
 
 -type datapoints() :: [{number(), number()}]
                     | number().
 
+-type async_action() :: fun(({ok, snabbkaffe:event()} | timeout) -> _).
+
 -record(callback,
-        { from      :: gen_server:from()
-        , predicate :: snabbkaffe:predicate()
-        , tref      :: reference() | undefined
+        { async_action :: async_action()
+        , predicate    :: snabbkaffe:predicate()
+        , tref         :: reference() | undefined
+        , ref          :: reference()
         }).
 
 -record(s,
@@ -58,7 +69,7 @@ get_trace(Timeout) ->
   Trace.
 
 -spec block_until(snabbkaffe:predicate(), timeout(), timeout()) ->
-                     snabbkaffe:event() | timeout.
+                     {ok, snabbkaffe:event()} | timeout.
 block_until(Predicate, Timeout, BackInTime0) ->
   Infimum = case BackInTime0 of
               infinity ->
@@ -70,11 +81,17 @@ block_until(Predicate, Timeout, BackInTime0) ->
                                                      ),
                 erlang:monotonic_time() - BackInTime
             end,
-  {ok, Ret} = gen_server:call( ?SERVER
-                             , {block_until, Predicate, Timeout, Infimum}
-                             , infinity
-                             ),
-  Ret.
+  gen_server:call( ?SERVER
+                 , {block_until, Predicate, Timeout, Infimum}
+                 , infinity
+                 ).
+
+-spec notify_on_event(snabbkaffe:predicate(), timeout(), async_action()) ->
+                         ok.
+notify_on_event(Predicate, Timeout, Callback) ->
+  gen_server:call( ?SERVER
+                 , {notify_on_event, Callback, Predicate, Timeout}
+                 ).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -104,16 +121,25 @@ handle_call(get_stats, _From, State) ->
 handle_call({get_trace, Timeout}, From, State) ->
   timer:send_after(Timeout, {flush, From, Timeout}),
   {noreply, State};
-handle_call({block_until, Predicate, Timeout, Infimum}, From, State) ->
-  handle_block_until(Predicate, Timeout, Infimum, From, State);
+handle_call({block_until, Predicate, Timeout, Infimum}, From, State0) ->
+  Callback = fun(Result) ->
+                 gen_server:reply(From, Result)
+             end,
+  State = maybe_subscribe(Predicate, Timeout, Infimum, Callback, State0),
+  {noreply, State};
+handle_call({notify_on_event, Callback, Predicate, Timeout}, _From, State0) ->
+  Now = erlang:monotonic_time(),
+  State = maybe_subscribe(Predicate, Timeout, Now, Callback, State0),
+  {reply, ok, State};
 handle_call(_Request, _From, State) ->
   Reply = unknown_call,
   {reply, Reply, State}.
 
-handle_info({timeout, From}, State) ->
+handle_info({timeout, Ref}, State) ->
   #s{callbacks = CB0} = State,
-  Fun = fun(#callback{from = F}) when F =:= From ->
-            gen_server:reply(From, {ok, timeout}),
+  Fun = fun(#callback{ref = Ref1, async_action = AsyncAction})
+            when Ref1 =:= Ref ->
+            AsyncAction(timeout),
             false;
            (C) ->
             {true, C}
@@ -157,30 +183,28 @@ code_change(_OldVsn, State, _Extra) ->
                            ) -> [#callback{}].
 maybe_unblock_someone(Evt, Callbacks) ->
   Fun = fun(Callback) ->
-            #callback{ predicate = Predicate
-                     , from      = From
-                     , tref      = TRef
+            #callback{ predicate    = Predicate
+                     , async_action = AsyncAction
+                     , tref         = TRef
                      } = Callback,
             case Predicate(Evt) of
               false ->
                 {true, Callback};
               true  ->
                 cancel_timer(TRef),
-                gen_server:reply(From, {ok, Evt}),
+                AsyncAction({ok, Evt}),
                 false
             end
         end,
   lists:filtermap(Fun, Callbacks).
 
--spec handle_block_until( snabbkaffe:predicate()
-                        , timeout()
-                        , integer()
-                        , gen_server:from()
-                        , #s{}
-                        ) ->
-                            {reply, _, #s{}}
-                          | {noreply, #s{}}.
-handle_block_until(Predicate, Timeout, Infimum, From, State0) ->
+-spec maybe_subscribe( snabbkaffe:predicate()
+                     , timeout()
+                     , integer()
+                     , async_action()
+                     , #s{}
+                     ) -> #s{}.
+maybe_subscribe(Predicate, Timeout, Infimum, AsyncAction, State0) ->
   #s{ trace     = Trace
     , callbacks = CB0
     } = State0,
@@ -201,17 +225,19 @@ handle_block_until(Predicate, Timeout, Infimum, From, State0) ->
     throw(not_found)
   catch
     {found, Event} ->
-      {reply, {ok, Event}, State0};
+      AsyncAction({ok, Event}),
+      State0;
     not_found ->
       %% 2. Postpone reply
-      TRef = send_after(Timeout, self(), {timeout, From}),
-      Callback = #callback{ from      = From
-                          , predicate = Predicate
-                          , tref      = TRef
+      Ref = make_ref(),
+      TRef = send_after(Timeout, self(), {timeout, Ref}),
+      Callback = #callback{ async_action = AsyncAction
+                          , predicate    = Predicate
+                          , tref         = TRef
+                          , ref          = Ref
                           },
-      State = State0#s{ callbacks = [Callback|CB0]
-                      },
-      {noreply, State}
+      State0#s{ callbacks = [Callback|CB0]
+              }
   end.
 
 -spec send_after(timeout(), pid(), _Msg) ->

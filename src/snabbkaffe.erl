@@ -12,6 +12,7 @@
         , collect_trace/1
         , block_until/2
         , block_until/3
+        , wait_async_action/3
         , tp/2
         , push_stat/2
         , push_stat/3
@@ -103,6 +104,7 @@ tp(Kind, Event) ->
   Event1 = Event #{ ts   => erlang:monotonic_time()
                   , kind => Kind
                   },
+  ?slog(debug, Event1),
   gen_server:cast(?SERVER, Event1).
 
 -spec collect_trace() -> trace().
@@ -114,9 +116,24 @@ collect_trace(Timeout) ->
   snabbkaffe_collector:get_trace(Timeout).
 
 %% @equiv block_until(Predicate, Timeout, 100)
--spec block_until(predicate(), timeout()) -> event() | timeout.
+-spec block_until(predicate(), timeout()) -> {ok, event()} | timeout.
 block_until(Predicate, Timeout) ->
   block_until(Predicate, Timeout, 100).
+
+-spec wait_async_action(fun(() -> Return), predicate(), timeout()) ->
+                           {Return, {ok, event()} | timeout}.
+wait_async_action(Action, Predicate, Timeout) ->
+  Ref = make_ref(),
+  Self = self(),
+  Callback = fun(Result) ->
+                 Self ! {Ref, Result}
+             end,
+  snabbkaffe_collector:notify_on_event(Predicate, Timeout, Callback),
+  Return = Action(),
+  receive
+    {Ref, Result} ->
+      {Return, Result}
+  end.
 
 %% @doc Block execution of the run stage of a testcase until an event
 %% matching `Predicate' is received or until `Timeout'.
@@ -296,7 +313,7 @@ fix_ct_logging() ->
                         , #{ formatter => {logger_formatter,
                                            #{ depth => 100
                                             , single_line => false
-                                            , template => [msg]
+                                            %% , template => [msg]
                                             }}
                            }
                         );

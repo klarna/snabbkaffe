@@ -229,7 +229,7 @@ t_block_until(Config) when is_list(Config) ->
        ?block_until(#{kind := Kind, data := Data} when Data > 42)
      end,
      fun(Ret, _Trace) ->
-         ?assertMatch( #{kind := foo, data := 43}
+         ?assertMatch( {ok, #{kind := foo, data := 43}}
                      , Ret
                      )
      end).
@@ -250,7 +250,7 @@ t_block_until_from_past(Config) when is_list(Config) ->
        ?block_until(#{kind := Kind, data := Data} when Data > 42)
      end,
      fun(Ret, _Trace) ->
-         ?assertMatch( #{kind := foo, data := 44}
+         ?assertMatch( {ok, #{kind := foo, data := 44}}
                      , Ret
                      )
      end).
@@ -275,3 +275,35 @@ t_block_until_past_limit(Config) when is_list(Config) ->
      fun(Ret, _Trace) ->
          ?assertMatch(timeout, Ret)
      end).
+
+wait_async_action_prop() ->
+  MinDiff = 10,
+  ?FORALL(
+     {Delay, Timeout}, {range(0, 100), range(0, 100)},
+     ?IMPLIES(
+        abs(Delay - Timeout) > MinDiff,
+        ?check_trace(
+           ?wait_async_action(
+              begin
+                  timer:sleep(Delay),
+                  ?tp(bar, #{}),
+                  foo
+              end,
+              #{kind := bar},
+              Timeout),
+           fun({Result, Event}, _Trace) ->
+               ?assertMatch(foo, Result),
+               if Delay < Timeout ->
+                   ?assertMatch( {ok, #{kind := bar}}
+                               , Event
+                               );
+                  true ->
+                   ?assertMatch( timeout
+                               , Event
+                               )
+               end,
+               true
+           end))).
+
+t_wait_async_action(Config) when is_list(Config) ->
+  ?run_prop(Config, wait_async_action_prop()).
