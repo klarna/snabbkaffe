@@ -12,17 +12,25 @@ init_per_testcase(TestCase, Config) ->
     _ ->
       ok
   end,
-  Config1 = try apply(?MODULE, TestCase, [{init, Config}])
+  Config1 = try apply(?MODULE, common_init_per_testcase, [TestCase, Config])
             catch
-              error:function_clause -> Config
+              error:undef -> Config
+            end,
+  Config2 = try apply(?MODULE, TestCase, [{init, Config1}])
+            catch
+              error:function_clause -> Config1
             end,
   ok = snabbkaffe:start_trace(),
-  Config1.
+  Config2.
 
 end_per_testcase(TestCase, Config) ->
   try apply(?MODULE, TestCase, [{'end', Config}])
   catch
     error:function_clause -> ok
+  end,
+  try apply(?MODULE, common_end_per_testcase, [TestCase, Config])
+  catch
+    error:undef -> ok
   end,
   snabbkaffe:analyze_statistics(),
   snabbkaffe_collector:stop(),

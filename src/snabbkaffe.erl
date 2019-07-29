@@ -10,6 +10,9 @@
 -export([ start_trace/0
         , collect_trace/0
         , collect_trace/1
+        , block_until/2
+        , block_until/3
+        , wait_async_action/3
         , tp/2
         , push_stat/2
         , push_stat/3
@@ -29,6 +32,7 @@
         , causality/5
         , unique/1
         , projection_complete/3
+        , projection_is_subset/3
         , pair_max_depth/1
         , inc_counters/2
         , dec_counters/2
@@ -71,8 +75,10 @@
          , timeout => integer()
          }.
 
+-type predicate() :: fun((event()) -> boolean()).
+
 -export_type([ kind/0, timestamp/0, event/0, timed_event/0, trace/0
-             , maybe_pair/0, maybe/1, metric/0, run_config/0
+             , maybe_pair/0, maybe/1, metric/0, run_config/0, predicate/0
              ]).
 
 -define(SERVER, snabbkaffe_collector).
@@ -98,6 +104,7 @@ tp(Kind, Event) ->
   Event1 = Event #{ ts   => erlang:monotonic_time()
                   , kind => Kind
                   },
+  ?slog(debug, Event1),
   gen_server:cast(?SERVER, Event1).
 
 -spec collect_trace() -> trace().
@@ -107,6 +114,50 @@ collect_trace() ->
 -spec collect_trace(integer()) -> trace().
 collect_trace(Timeout) ->
   snabbkaffe_collector:get_trace(Timeout).
+
+%% @equiv block_until(Predicate, Timeout, 100)
+-spec block_until(predicate(), timeout()) -> {ok, event()} | timeout.
+block_until(Predicate, Timeout) ->
+  block_until(Predicate, Timeout, 100).
+
+-spec wait_async_action(fun(() -> Return), predicate(), timeout()) ->
+                           {Return, {ok, event()} | timeout}.
+wait_async_action(Action, Predicate, Timeout) ->
+  Ref = make_ref(),
+  Self = self(),
+  Callback = fun(Result) ->
+                 Self ! {Ref, Result}
+             end,
+  snabbkaffe_collector:notify_on_event(Predicate, Timeout, Callback),
+  Return = Action(),
+  receive
+    {Ref, Result} ->
+      {Return, Result}
+  end.
+
+%% @doc Block execution of the run stage of a testcase until an event
+%% matching `Predicate' is received or until `Timeout'.
+%%
+%% <b>Note</b>: since the most common use case for this function is
+%% the following:
+%%
+%% ```trigger_produce_event_async(),
+%%    snabbkaffe:block_until(MatchEvent, 1000)
+%% ```
+%%
+%% there is a possible situation when the event is emitted before
+%% `block_until' function has a chance to run. In this case the latter
+%% will time out for no good reason. In order to work around this,
+%% `block_until' function actually searches for events matching
+%% `Predicate' in the past. `BackInTime' parameter determines how far
+%% back into past this function peeks.
+%%
+%% <b>Note</b>: In the current implementation `Predicate' runs for
+%% every received event. It means this function should be lightweight
+-spec block_until(predicate(), timeout(), timeout()) ->
+                     event() | timeout.
+block_until(Predicate, Timeout, BackInTime) ->
+  snabbkaffe_collector:block_until(Predicate, Timeout, BackInTime).
 
 -spec start_trace() -> ok.
 start_trace() ->
@@ -178,14 +229,14 @@ run(Config, Run, Check) ->
         ?log(critical, "Check stage failed: ~p:~p~nStacktrace: ~p~n"
                      , [EC1, Error1, Stack1]
                      ),
-        false
+        error({check_mode_failed, EC1, Error1, Stack1})
     end
   catch EC:Error ?BIND_STACKTRACE(Stack) ->
       ?GET_STACKTRACE(Stack),
       ?log(critical, "Run stage failed: ~p:~p~nStacktrace: ~p~n"
                    , [EC, Error, Stack]
                    ),
-      false
+      error({run_stage_failed, EC, Error, Stack})
   end.
 
 %%====================================================================
@@ -262,7 +313,7 @@ fix_ct_logging() ->
                         , #{ formatter => {logger_formatter,
                                            #{ depth => 100
                                             , single_line => false
-                                            , template => [msg]
+                                            %% , template => [msg]
                                             }}
                            }
                         );
@@ -355,6 +406,17 @@ projection_complete(Field, Trace, Expected) ->
       true;
     Missing ->
       panic("Trace is missing elements: ~p", [Missing])
+  end.
+
+-spec projection_is_subset(atom(), trace(), [term()]) -> true.
+projection_is_subset(Field, Trace, Expected) ->
+  Got = ordsets:from_list([Val || #{Field := Val} <- Trace]),
+  Expected1 = ordsets:from_list(Expected),
+  case ordsets:subtract(Got, Expected1) of
+    [] ->
+      true;
+    Unexpected ->
+      panic("Trace contains unexpected elements: ~p", [Unexpected])
   end.
 
 -spec pair_max_depth([maybe_pair()]) -> non_neg_integer().

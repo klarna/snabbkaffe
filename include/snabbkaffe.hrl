@@ -68,6 +68,9 @@
 -define(projection_complete(Field, Trace, L),
         snabbkaffe:projection_complete(Field, Trace, L)).
 
+-define(projection_is_subset(Field, Trace, L),
+        snabbkaffe:projection_is_subset(Field, Trace, L)).
+
 -define(check_trace(Bucket, Run, Check),
         snabbkaffe:run( (fun() -> Bucket end)()
                       , fun() -> Run end
@@ -130,6 +133,55 @@
          end)()).
 
 -define(retry(Timeout, N, Fun), snabbkaffe:retry(Timeout, N, fun() -> Fun end)).
+
+-define(block_until(Match, Timeout, BackInTime),
+        (fun() ->
+             __SnkPredFun = fun(__SnkEvt) ->
+                                case __SnkEvt of
+                                  Match ->
+                                    true;
+                                  _ ->
+                                    false
+                                end
+                            end,
+             snabbkaffe:block_until(__SnkPredFun, (Timeout), (BackInTime))
+         end)()).
+
+-define(wait_async_action(Action, Match, Timeout),
+        (fun() ->
+             __SnkPredFun = fun(__SnkEvt) ->
+                                case __SnkEvt of
+                                  Match ->
+                                    true;
+                                  _ ->
+                                    false
+                                end
+                            end,
+             snabbkaffe:wait_async_action( fun() -> Action end
+                                         , __SnkPredFun
+                                         , (Timeout)
+                                         )
+         end)()).
+
+-define(wait_async_action(Action, Match),
+        ?wait_async_action(Action, Match, infinity)).
+
+-define(block_until(Match, Timeout),
+        ?block_until(Match, (Timeout), 100)).
+
+-define(block_until(Match),
+        ?block_until(Match, infinity)).
+
+-define(split_trace_at(Pattern, Trace),
+        (fun() ->
+             __SnkSplitFun = fun(__SnkSplitArg) ->
+                                 case __SnkSplitArg of
+                                   Pattern -> false;
+                                   _       -> true
+                                 end
+                             end,
+             lists:splitwith(__SnkSplitFun, (Trace))
+         end)()).
 
 -else. %% SNK_COLLECTOR
 
