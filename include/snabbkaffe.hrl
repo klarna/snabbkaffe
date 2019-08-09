@@ -90,17 +90,22 @@
                                _      -> []
                              end,
              __SnkPrint = fun(Fmt, Args) -> ?log(notice, Fmt, Args) end,
-             __SnkRet = proper:quickcheck( ?TIMEOUT(__SnkTimeout, PROPERTY)
-                                         , [ {numtests, __SnkNumtests}
-                                           , {max_size, __SnkMaxSize}
-                                           , {on_output, __SnkPrint}
-                                           ] ++ __SnkColors
-                                         ),
+             __SnkRet = proper:quickcheck(
+                          ?TIMEOUT( __SnkTimeout
+                                  , begin
+                                      ?log(info, asciiart:visible($', "Runnung ~s", [??PROPERTY])),
+                                      PROPERTY
+                                    end)
+                         , [ {numtests, __SnkNumtests}
+                           , {max_size, __SnkMaxSize}
+                           , {on_output, __SnkPrint}
+                           ] ++ __SnkColors
+                         ),
              case __SnkRet of
                true ->
                  ok;
                Error ->
-                 ?log(critical, "!!!! Proper test failed: ~p~n", [Error]),
+                 ?log(critical, asciiart:visible($!, "Proper test failed: ~p", [Error])),
                  exit(fail)
              end
          end)()).
