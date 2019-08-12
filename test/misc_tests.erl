@@ -16,3 +16,20 @@ projection_2_test() ->
               , snabbkaffe:projection( [foo, bar]
                                      , [?foo(1), ?foo(2), ?foo(3)]
                                      )).
+
+strictly_increasing_test() ->
+  ?assertMatch( true
+              , snabbkaffe:strictly_increasing([])
+              ),
+  ?assertMatch( true
+              , snabbkaffe:strictly_increasing([1])
+              ),
+  ?assertMatch( true
+              , snabbkaffe:strictly_increasing([1, 2, 5, 6])
+              ),
+  ?assertError( _
+              , snabbkaffe:strictly_increasing([1, 2, 5, 3])
+              ),
+  ?assertError( _
+              , snabbkaffe:strictly_increasing([1, 2, 2, 3])
+              ).

@@ -36,6 +36,7 @@
         , pair_max_depth/1
         , inc_counters/2
         , dec_counters/2
+        , strictly_increasing/1
         ]).
 
 -export([ mk_all/1
@@ -308,7 +309,8 @@ fix_ct_logging() ->
   case os:getenv("KEEP_CT_LOGGING") of
     false ->
       logger:set_primary_config(level, LogLevel),
-      logger:add_handler( full_log
+      logger:remove_handler(default),
+      logger:add_handler( default
                         , logger_std_h
                         , #{ formatter => {logger_formatter,
                                            #{ depth => 100
@@ -436,6 +438,23 @@ pair_max_depth(Pairs) ->
     end,
   {_, Max} = lists:foldl(CalcDepth, {0, 0}, L),
   Max.
+
+-spec strictly_increasing(list()) -> true.
+strictly_increasing(L) ->
+  case L of
+    [Init|Rest] ->
+      Fun = fun(A, B) ->
+                A > B orelse
+                  panic("Elements ~p and ~p of list ~p are not"
+                        " strictly increasing",
+                       [A, B, L]),
+                A
+            end,
+      lists:foldl(Fun, Init, Rest),
+      true;
+    [] ->
+      true
+  end.
 
 %%====================================================================
 %% Internal functions
