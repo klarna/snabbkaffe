@@ -227,15 +227,19 @@ run(Config, Run, Check) ->
     try Check(Return, Trace)
     catch EC1:Error1 ?BIND_STACKTRACE(Stack1) ->
         ?GET_STACKTRACE(Stack1),
+        Filename1 = dump_trace(Trace),
         ?log(critical, "Check stage failed: ~p:~p~nStacktrace: ~p~n"
-                     , [EC1, Error1, Stack1]
+                       "Trace dump: ~p~n"
+                     , [EC1, Error1, Stack1, Filename1]
                      ),
         error({check_mode_failed, EC1, Error1, Stack1})
     end
   catch EC:Error ?BIND_STACKTRACE(Stack) ->
       ?GET_STACKTRACE(Stack),
+      Filename = dump_trace(collect_trace(0)),
       ?log(critical, "Run stage failed: ~p:~p~nStacktrace: ~p~n"
-                   , [EC, Error, Stack]
+                     "Trace dump: ~p~n"
+                   , [EC, Error, Stack, Filename]
                    ),
       error({run_stage_failed, EC, Error, Stack})
   end.
@@ -489,6 +493,20 @@ do_find_pairs(Strict, Guard, [{A, C, E}|T]) ->
     _ ->
       do_find_pairs(Strict, Guard, T)
   end.
+
+-spec dump_trace(trace()) -> file:filename().
+dump_trace(Trace) ->
+  {ok, CWD} = file:get_cwd(),
+  Filename = integer_to_list(os:system_time()) ++ ".log",
+  FullPath = filename:join([CWD, "snabbkaffe", Filename]),
+  filelib:ensure_dir(FullPath),
+  {ok, Handle} = file:open(FullPath, [write]),
+  try
+    lists:foreach(fun(I) -> io:format(Handle, "~99999p.~n", [I]) end, Trace)
+  after
+    file:close(Handle)
+  end,
+  FullPath.
 
 -spec inc_counters([Key], Map) -> Map
         when Map :: #{Key => integer()}.
