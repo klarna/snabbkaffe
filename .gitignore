@@ -9,3 +9,7 @@ rel/example_project
 .concrete/DEV_MODE
 .rebar
 _build
+concuerror_report.txt
+TAGS
+rebar3.crashdump
+snabbkaffe

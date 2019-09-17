@@ -5,3 +5,4 @@ otp_release:
 
 script: |
   make
+  make concuerror_test

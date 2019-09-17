@@ -1,10 +1,6 @@
 -module(snabbkaffe_collector).
 
--ifndef(SNK_COLLECTOR).
--define(SNK_COLLECTOR, true).
--endif.
-
--include("snabbkaffe.hrl").
+-include("snabbkaffe_internal.hrl").
 
 -behaviour(gen_server).
 
@@ -15,6 +11,8 @@
         , get_stats/0
         , block_until/3
         , notify_on_event/3
+        , tp/2
+        , push_stat/3
         ]).
 
 %% gen_server callbacks
@@ -38,7 +36,7 @@
         }).
 
 -record(s,
-        { trace = []        :: [snabbkaffe:timed_event()]
+        { trace             :: [snabbkaffe:timed_event()]
         , stats = #{}       :: #{snabbkaffe:metric() => datapoints()}
         , last_event_ts = 0 :: integer()
         , callbacks = []    :: [#callback{}]
@@ -47,6 +45,24 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+-spec tp(atom(), map()) -> ok.
+tp(Kind, Event) ->
+  Event1 = Event #{ ts   => timestamp()
+                  , kind => Kind
+                  },
+  ?slog(debug, Event1),
+  gen_server:call(?SERVER, {trace, Event1}).
+
+-spec push_stat(snabbkaffe:metric(), number() | undefined, number()) -> ok.
+push_stat(Metric, X, Y) ->
+  Val = case X of
+          undefined ->
+            Y;
+          _ ->
+            {X, Y}
+        end,
+  gen_server:call(?SERVER, {push_stat, Metric, Val}).
 
 start() ->
   case whereis(?SERVER) of
@@ -73,7 +89,7 @@ get_trace(Timeout) ->
 block_until(Predicate, Timeout, BackInTime0) ->
   Infimum = case BackInTime0 of
               infinity ->
-                erlang:system_info(start_time);
+                beginning_of_times();
               _ ->
                 BackInTime = erlang:convert_time_unit( BackInTime0
                                                      , millisecond
@@ -99,16 +115,24 @@ notify_on_event(Predicate, Timeout, Callback) ->
 
 init([]) ->
   process_flag(trap_exit, true),
-  snabbkaffe:tp('$trace_begin', #{}),
-  {ok, #s{}}.
+  TS = timestamp(),
+  BeginTrace = #{ ts   => TS
+                , kind => '$trace_begin'
+                },
+  {ok, #s{ trace         = [BeginTrace]
+         , last_event_ts = TS
+         }}.
 
-handle_cast(Evt, S = #s{trace = T0, callbacks = CB0}) ->
+handle_cast(Evt, State) ->
+  {noreply, State}.
+
+handle_call({trace, Evt}, _From, State0 = #s{trace = T0, callbacks = CB0}) ->
   CB = maybe_unblock_someone(Evt, CB0),
-  {noreply, S#s{ trace         = [Evt|T0]
-               , last_event_ts = erlang:monotonic_time()
-               , callbacks     = CB
-               }}.
-
+  State = State0#s{ trace         = [Evt|T0]
+                  , last_event_ts = timestamp()
+                  , callbacks     = CB
+                  },
+  {reply, ok, State};
 handle_call({push_stat, Metric, Stat}, _From, State0) ->
   Stats = maps:update_with( Metric
                           , fun(L) -> [Stat|L] end
@@ -150,18 +174,19 @@ handle_info(Event = {flush, To, Timeout}, State) ->
   #s{ trace         = Trace
     , last_event_ts = LastEventTs
     } = State,
-  Dt = erlang:convert_time_unit( erlang:monotonic_time() - LastEventTs
+  Dt = erlang:convert_time_unit( timestamp() - LastEventTs
                                , native
                                , millisecond
                                ),
-  if Dt >= Timeout ->
+  case is_finished(Dt, Timeout) of
+    true ->
       TraceEnd = #{ kind => '$trace_end'
                   , ts   => LastEventTs
                   },
       Result = lists:reverse([TraceEnd|Trace]),
       gen_server:reply(To, {ok, Result}),
       {noreply, State #s{trace = []}};
-     true ->
+    false ->
       timer:send_after(Timeout, Event),
       {noreply, State}
   end;
@@ -252,3 +277,31 @@ cancel_timer(undefined) ->
   ok;
 cancel_timer(TRef) ->
   erlang:cancel_timer(TRef).
+
+-spec timestamp() -> integer().
+-ifndef(CONCUERROR).
+timestamp() ->
+  erlang:monotonic_time().
+-else.
+timestamp() ->
+  -1.
+-endif.
+
+-spec beginning_of_times() -> integer().
+-ifndef(CONCUERROR).
+beginning_of_times() ->
+  erlang:system_info(start_time).
+-else.
+beginning_of_times() ->
+  -2.
+-endif.
+
+-spec is_finished(integer(), integer()) -> boolean().
+-ifndef(CONCUERROR).
+is_finished(Dt, SilenceInterval) ->
+  Dt >= SilenceInterval.
+-else.
+is_finished(_, _) ->
+  %% "Silence interval" feature doesn't work with Concuerror
+  true.
+-endif.
