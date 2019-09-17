@@ -182,8 +182,8 @@ bound(Fun, Cfg, L) ->
 
 -spec visible(char(), string(), [term()]) -> iolist().
 visible(Char, Fmt, Args) ->
-  Str = string:split(lists:flatten(io_lib:format(Fmt, Args)), "\n", all),
-  Width = max(80, lists:max([length(I) || I <- Str])),
+  Str = lines(lists:flatten(io_lib:format(Fmt, Args))),
+  Width = max(79, lists:max([length(I) || I <- Str])) + 1,
   N = length(Str),
   Text = [string({4, Y}, S, right)
           || {Y, S} <- lists:zip( lists:seq(1, N)
@@ -197,3 +197,7 @@ visible(Char, Fmt, Args) ->
              , asciiart:line({Width, 0}, {Width, N + 1}, Char)
              ] ++ Text),
   [$\n, render(Cnv), $\n].
+
+-spec lines(string()) -> [string()].
+lines(Str) ->
+  re:split(Str, "\n", [{return, list}]).
