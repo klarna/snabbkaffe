@@ -4,7 +4,7 @@
 -define(SNK_COLLECTOR, true).
 -endif.
 
--include("snabbkaffe.hrl").
+-include("snabbkaffe_internal.hrl").
 
 %% API exports
 -export([ start_trace/0
@@ -13,7 +13,6 @@
         , block_until/2
         , block_until/3
         , wait_async_action/3
-        , tp/2
         , push_stat/2
         , push_stat/3
         , push_stats/2
@@ -82,31 +81,13 @@
              , maybe_pair/0, maybe/1, metric/0, run_config/0, predicate/0
              ]).
 
--define(SERVER, snabbkaffe_collector).
-
 %%====================================================================
 %% Macros
 %%====================================================================
 
--ifdef(OTP_RELEASE).
--define(BIND_STACKTRACE(V), : V).
--define(GET_STACKTRACE(V), ok).
--else.
--define(BIND_STACKTRACE(V),).
--define(GET_STACKTRACE(V), V = erlang:get_stacktrace()).
--endif.
-
 %%====================================================================
 %% API functions
 %%====================================================================
-
--spec tp(atom(), map()) -> ok.
-tp(Kind, Event) ->
-  Event1 = Event #{ ts   => erlang:monotonic_time()
-                  , kind => Kind
-                  },
-  ?slog(debug, Event1),
-  gen_server:cast(?SERVER, Event1).
 
 -spec collect_trace() -> trace().
 collect_trace() ->
@@ -214,7 +195,7 @@ run(Config, Run, Check) ->
   start_trace(),
   %% Wipe the trace buffer clean:
   _ = collect_trace(0),
-  snabbkaffe:tp('$trace_begin', #{}),
+  snabbkaffe_collector:tp('$trace_begin', #{}),
   try
     Return  = Run(),
     Trace   = collect_trace(Timeout),
@@ -223,7 +204,7 @@ run(Config, Run, Check) ->
                          , #{kind := '$trace_end'}
                          , Trace
                          ),
-    push_stats(run_time, Bucket, RunTime),
+    ?SNK_CONCUERROR orelse push_stats(run_time, Bucket, RunTime),
     try Check(Return, Trace)
     catch EC1:Error1 ?BIND_STACKTRACE(Stack1) ->
         ?GET_STACKTRACE(Stack1),
@@ -337,17 +318,11 @@ fix_ct_logging() ->
 
 -spec push_stat(metric(), number()) -> ok.
 push_stat(Metric, Num) ->
-  push_stat(Metric, undefined, Num).
+  snabbkaffe_collector:push_stat(Metric, undefined, Num).
 
 -spec push_stat(metric(), number() | undefined, number()) -> ok.
 push_stat(Metric, X, Y) ->
-  Val = case X of
-          undefined ->
-            Y;
-          _ ->
-            {X, Y}
-        end,
-  gen_server:call(?SERVER, {push_stat, Metric, Val}).
+  snabbkaffe_collector:push_stat(Metric, X, Y).
 
 -spec push_stats(metric(), number(), [maybe_pair()] | number()) -> ok.
 push_stats(Metric, Bucket, Pairs) ->

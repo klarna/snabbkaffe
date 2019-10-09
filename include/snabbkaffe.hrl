@@ -11,8 +11,8 @@
 
 -ifdef(SNK_COLLECTOR).
 
--define(tp(Level, Kind, Evt), snabbkaffe:tp(Kind, Evt)).
--define(tp(Kind, Evt), snabbkaffe:tp(Kind, Evt)).
+-define(tp(Level, Kind, Evt), snabbkaffe_collector:tp(Kind, Evt)).
+-define(tp(Kind, Evt), snabbkaffe_collector:tp(Kind, Evt)).
 
 -define(of_kind(Kind, Trace),
         snabbkaffe:events_of_kind(Kind, Trace)).
