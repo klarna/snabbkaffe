@@ -1,6 +1,6 @@
 BUILD_DIR := $(CURDIR)/_build
 CONCUERROR := $(BUILD_DIR)/Concuerror/bin/concuerror
-CONCUERROR_RUN := $(CONCUERROR) -x snabbkaffe_collector -x snabbkaffe \
+CONCUERROR_RUN := $(CONCUERROR) -x snabbkaffe_collector -x snabbkaffe -x snabbkaffe_nemesis -x snabbkaffe_sup \
 	-x code -x code_server -x error_handler \
 	-pa $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/ebin
 

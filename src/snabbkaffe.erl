@@ -8,6 +8,7 @@
 
 %% API exports
 -export([ start_trace/0
+        , stop/0
         , collect_trace/0
         , collect_trace/1
         , block_until/2
@@ -143,7 +144,16 @@ block_until(Predicate, Timeout, BackInTime) ->
 
 -spec start_trace() -> ok.
 start_trace() ->
-  {ok, _} = snabbkaffe_collector:start(),
+  case snabbkaffe_sup:start_link() of
+    {ok, _} ->
+      ok;
+    {error, {already_started, _}} ->
+      ok
+  end.
+
+-spec stop() -> ok.
+stop() ->
+  snabbkaffe_sup:stop(),
   ok.
 
 %% @doc Extract events of certain kind(s) from the trace

@@ -5,8 +5,7 @@
 -behaviour(gen_server).
 
 %% API
--export([ start/0
-        , stop/0
+-export([ start_link/0
         , get_trace/1
         , get_stats/0
         , block_until/3
@@ -64,16 +63,8 @@ push_stat(Metric, X, Y) ->
         end,
   gen_server:call(?SERVER, {push_stat, Metric, Val}).
 
-start() ->
-  case whereis(?SERVER) of
-    undefined ->
-      gen_server:start({local, ?SERVER}, ?MODULE, [], []);
-    Pid ->
-      {ok, Pid}
-  end.
-
-stop() ->
-  gen_server:stop(?SERVER).
+start_link() ->
+  gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
 -spec get_stats() -> datapoints().
 get_stats() ->
@@ -114,7 +105,6 @@ notify_on_event(Predicate, Timeout, Callback) ->
 %%%===================================================================
 
 init([]) ->
-  process_flag(trap_exit, true),
   TS = timestamp(),
   BeginTrace = #{ ts   => TS
                 , kind => '$trace_begin'
