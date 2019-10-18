@@ -57,7 +57,7 @@ workflow looks like this:
 ok = snabbkaffe:start_trace(),
 Return = RunYourCode(),
 Trace = snabbkaffe:collect_trace(Timeout),
-snabbkaffe_collector:stop(),
+snabbkaffe:stop(),
 RunCheck1(Return, Trace),
 RunCheck2(Return, Trace),
 ...

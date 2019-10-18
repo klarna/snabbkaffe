@@ -188,11 +188,30 @@
              lists:splitwith(__SnkSplitFun, (Trace))
          end)()).
 
+-define(maybe_crash(Kind, Data),
+        snabbkaffe_nemesis:maybe_crash(Kind, Data#{kind => Kind})).
+
+-define(inject_crash(Pattern, Strategy, Reason),
+        snabbkaffe_nemesis:inject_crash( fun(__SnkEvt) ->
+                                             case __SnkEvt of
+                                               Pattern -> true;
+                                               _       -> false
+                                             end
+                                         end
+                                       , (Strategy)
+                                       , (Reason)
+                                       )).
+
+-define(inject_crash(Pattern, Strategy),
+        ?inject_crash(Pattern, Strategy, notmyday)).
+
 -else. %% SNK_COLLECTOR
 
 -define(tp(Level, Kind, Evt), ?slog(Level, Evt #{kind => Kind})).
 
 -define(tp(Kind, Evt), ?tp(debug, Kind, Evt)).
+
+-define(maybe_crash(Kind, Data), ok).
 
 -endif. %% SNK_COLLECTOR
 -endif. %% SNABBKAFFE_HRL

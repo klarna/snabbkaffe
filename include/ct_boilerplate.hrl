@@ -33,7 +33,7 @@ end_per_testcase(TestCase, Config) ->
     error:undef -> ok
   end,
   snabbkaffe:analyze_statistics(),
-  snabbkaffe_collector:stop(),
+  snabbkaffe:stop(),
   case os:getenv("KEEP_CT_LOGGING") of
     false ->
       ?log(notice, asciiart:visible($%, "End of ~p", [TestCase]));
