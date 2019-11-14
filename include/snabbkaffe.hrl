@@ -188,6 +188,28 @@
              lists:splitwith(__SnkSplitFun, (Trace))
          end)()).
 
+-define(splitl_trace(Pattern, Trace),
+        (fun() ->
+             __SnkSplitFun = fun(__SnkSplitArg) ->
+                                 case __SnkSplitArg of
+                                   Pattern -> false;
+                                   _       -> true
+                                 end
+                             end,
+             snabbkaffe:splitl(__SnkSplitFun, (Trace))
+         end)()).
+
+-define(splitr_trace(Pattern, Trace),
+        (fun() ->
+             __SnkSplitFun = fun(__SnkSplitArg) ->
+                                 case __SnkSplitArg of
+                                   Pattern -> false;
+                                   _       -> true
+                                 end
+                             end,
+             snabbkaffe:splitr(__SnkSplitFun, (Trace))
+         end)()).
+
 -define(maybe_crash(Kind, Data),
         snabbkaffe_nemesis:maybe_crash(Kind, Data#{kind => Kind})).
 

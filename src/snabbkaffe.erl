@@ -23,6 +23,8 @@
         , run/3
         , get_cfg/3
         , fix_ct_logging/0
+        , splitl/2
+        , splitr/2
         ]).
 
 -export([ events_of_kind/2
@@ -234,6 +236,37 @@ run(Config, Run, Check) ->
                    ),
       error({run_stage_failed, EC, Error, Stack})
   end.
+
+%%====================================================================
+%% List manipulation functions
+%%====================================================================
+
+%% @doc Split list by predicate like this:
+%% ```[true, true, false, true, true, false] ->
+%%     [[true, true], [false, true, true], [false]]
+%% '''
+-spec splitr(fun((A) -> boolean()), [A]) -> [[A]].
+splitr(_, []) ->
+  [];
+splitr(Pred, L) ->
+  case lists:splitwith(Pred, L) of
+    {[], [X|Rest]} ->
+      {A, B} = lists:splitwith(Pred, Rest),
+      [[X|A]|splitr(Pred, B)];
+    {A, B} ->
+      [A|splitr(Pred, B)]
+  end.
+
+%% @doc Split list by predicate like this:
+%% ```[true, true, false, true, true, false] ->
+%%     [[true, true, false], [true, true, false]]
+%% '''
+-spec splitl(fun((A) -> boolean()), [A]) -> [[A]].
+splitl(_, []) ->
+  [];
+splitl(Pred, L) ->
+  {A, B} = splitwith_(Pred, L, []),
+  [A|splitl(Pred, B)].
 
 %%====================================================================
 %% CT overhauls
@@ -618,3 +651,13 @@ transform_stats(Data) ->
             false
         end,
   lists:filtermap(Fun, Data).
+
+%% @private Version of `lists:splitwith/2' that appends element that
+%% doesn't match predicate to the tail of the first tuple element
+splitwith_(Pred, [Hd|Tail], Taken) ->
+  case Pred(Hd) of
+    true  -> splitwith_(Pred, Tail, [Hd|Taken]);
+    false -> {lists:reverse([Hd|Taken]), Tail}
+  end;
+splitwith_(Pred, [], Taken) ->
+  {lists:reverse(Taken), []}.
