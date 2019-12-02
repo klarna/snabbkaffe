@@ -133,8 +133,8 @@ maybe_crash(Key, Data) ->
       %% time:
       case S(NewVal) of
         true ->
-          ?tp(snabbkaffe_crash, Data#{ crash_kind => Key
-                                     }),
+          snabbkaffe_collector:tp(snabbkaffe_crash, Data#{ crash_kind => Key
+                                                         }),
           error(R);
         false ->
           ok
