@@ -11,8 +11,24 @@
 
 -ifdef(SNK_COLLECTOR).
 
--define(tp(Level, Kind, Evt), snabbkaffe_collector:tp(Kind, Evt)).
--define(tp(Kind, Evt), snabbkaffe_collector:tp(Kind, Evt)).
+%% Dirty hack: we use reference to a local function as a key that can
+%% be used to refer error injection points. This works, because all
+%% invokations of this macro create a new fun object with unique id.
+-define(__snkStaticUniqueToken, fun() -> ok end).
+
+-define(maybe_crash(Kind, Data),
+        snabbkaffe_nemesis:maybe_crash(Kind, Data#{kind => Kind})).
+
+-define(maybe_crash(Data),
+        snabbkaffe_nemesis:maybe_crash(?__snkStaticUniqueToken, Data)).
+
+-define(tp(Level, Kind, Evt),
+        (fun() ->
+             ?maybe_crash(Evt #{kind => Kind}),
+             snabbkaffe_collector:tp(Kind, Evt)
+         end)()).
+
+-define(tp(Kind, Evt), ?tp(debug, Kind, Evt)).
 
 -define(of_kind(Kind, Trace),
         snabbkaffe:events_of_kind(Kind, Trace)).
@@ -172,7 +188,7 @@
         ?wait_async_action(Action, Match, infinity)).
 
 -define(block_until(Match, Timeout),
-        ?block_until(Match, (Timeout), 100)).
+        ?block_until(Match, (Timeout), infinity)).
 
 -define(block_until(Match),
         ?block_until(Match, infinity)).
@@ -210,9 +226,6 @@
              snabbkaffe:splitr(__SnkSplitFun, (Trace))
          end)()).
 
--define(maybe_crash(Kind, Data),
-        snabbkaffe_nemesis:maybe_crash(Kind, Data#{kind => Kind})).
-
 -define(inject_crash(Pattern, Strategy, Reason),
         snabbkaffe_nemesis:inject_crash( fun(__SnkEvt) ->
                                              case __SnkEvt of
@@ -234,6 +247,8 @@
 -define(tp(Kind, Evt), ?tp(debug, Kind, Evt)).
 
 -define(maybe_crash(Kind, Data), ok).
+
+-define(maybe_crash(Data), ok).
 
 -endif. %% SNK_COLLECTOR
 -endif. %% SNABBKAFFE_HRL
