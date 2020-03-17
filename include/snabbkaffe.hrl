@@ -9,7 +9,12 @@
 -endif. %% SNK_COLLECTOR
 -endif. %% TEST
 
+-define(snk_kind, '$kind'). %% "$" will make kind field go first when maps are printed.
+
 -ifdef(SNK_COLLECTOR).
+
+-define(panic(Kind, Args),
+        error({panic, (Args) #{?snk_kind => (Kind)}})).
 
 %% Dirty hack: we use reference to a local function as a key that can
 %% be used to refer error injection points. This works, because all
@@ -17,7 +22,7 @@
 -define(__snkStaticUniqueToken, fun() -> ok end).
 
 -define(maybe_crash(Kind, Data),
-        snabbkaffe_nemesis:maybe_crash(Kind, Data#{kind => Kind})).
+        snabbkaffe_nemesis:maybe_crash(Kind, Data#{?snk_kind => Kind})).
 
 -define(maybe_crash(Data),
         snabbkaffe_nemesis:maybe_crash(?__snkStaticUniqueToken, Data)).
@@ -88,10 +93,15 @@
         snabbkaffe:projection_is_subset(Field, Trace, L)).
 
 -define(check_trace(Bucket, Run, Check),
-        snabbkaffe:run( (fun() -> Bucket end)()
-                      , fun() -> Run end
-                      , Check
-                      )).
+        (case snabbkaffe:run( (fun() -> Bucket end)()
+                            , fun() -> Run end
+                            , begin Check end
+                            ) of
+           true -> true;
+           ok   -> true;
+           {error, {panic, CrashKind, Args}} -> ?panic(CrashKind, Args);
+           A -> ?panic("Unexpected result", #{result => A})
+         end)).
 
 -define(check_trace(RUN, CHECK),
         ?check_trace(#{}, RUN, CHECK)).
@@ -242,7 +252,7 @@
 
 -else. %% SNK_COLLECTOR
 
--define(tp(Level, Kind, Evt), ?slog(Level, Evt #{kind => Kind})).
+-define(tp(Level, Kind, Evt), ?slog(Level, Evt #{?snk_kind => Kind})).
 
 -define(tp(Kind, Evt), ?tp(debug, Kind, Evt)).
 

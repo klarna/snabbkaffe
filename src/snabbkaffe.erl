@@ -56,12 +56,12 @@
 -type timestamp() :: integer().
 
 -type event() ::
-        #{ kind := kind()
+        #{ ?snk_kind := kind()
          , _ => _
          }.
 
 -type timed_event() ::
-        #{ kind := kind()
+        #{ ?snk_kind := kind()
          , ts   := timestamp()
          , _ => _
          }.
@@ -163,7 +163,7 @@ stop() ->
 events_of_kind(Kind, Events) when is_atom(Kind) ->
   events_of_kind([Kind], Events);
 events_of_kind(Kinds, Events) ->
-  [E || E = #{kind := Kind} <- Events, lists:member(Kind, Kinds)].
+  [E || E = #{?snk_kind := Kind} <- Events, lists:member(Kind, Kinds)].
 
 -spec projection([atom()] | atom(), trace()) -> list().
 projection(Field, Trace) when is_atom(Field) ->
@@ -198,7 +198,7 @@ find_pairs(Strict, CauseP, EffectP, Guard, L) ->
 -spec run( run_config() | integer()
          , fun()
          , fun()
-         ) -> boolean().
+         ) -> boolean() | {error, _}.
 run(Bucket, Run, Check) when is_integer(Bucket) ->
   run(#{bucket => Bucket}, Run, Check);
 run(Config, Run, Check) ->
@@ -212,8 +212,8 @@ run(Config, Run, Check) ->
     Return  = Run(),
     Trace   = collect_trace(Timeout),
     RunTime = ?find_pairs( false
-                         , #{kind := '$trace_begin'}
-                         , #{kind := '$trace_end'}
+                         , #{?snk_kind := '$trace_begin'}
+                         , #{?snk_kind := '$trace_end'}
                          , Trace
                          ),
     ?SNK_CONCUERROR orelse push_stats(run_time, Bucket, RunTime),
@@ -221,11 +221,11 @@ run(Config, Run, Check) ->
     catch EC1:Error1 ?BIND_STACKTRACE(Stack1) ->
         ?GET_STACKTRACE(Stack1),
         Filename1 = dump_trace(Trace),
-        ?log(critical, "Check stage failed: ~p:~p~nStacktrace: ~p~n"
+        ?log(critical, "Check stage failed: ~p~n~p~nStacktrace: ~p~n"
                        "Trace dump: ~p~n"
                      , [EC1, Error1, Stack1, Filename1]
                      ),
-        error({check_mode_failed, EC1, Error1, Stack1})
+        {error, {check_mode_failed, EC1, Error1, Stack1}}
     end
   catch EC:Error ?BIND_STACKTRACE(Stack) ->
       ?GET_STACKTRACE(Stack),
@@ -234,7 +234,7 @@ run(Config, Run, Check) ->
                      "Trace dump: ~p~n"
                    , [EC, Error, Stack, Filename]
                    ),
-      error({run_stage_failed, EC, Error, Stack})
+      {error, {run_stage_failed, EC, Error, Stack}}
   end.
 
 %%====================================================================
@@ -401,7 +401,7 @@ analyze_statistics() ->
 causality(Strict, CauseP, EffectP, Guard, Trace) ->
   Pairs = find_pairs(true, CauseP, EffectP, Guard, Trace),
   if Strict ->
-      [panic("Cause without effect: ~p", [I])
+      [?panic("Cause without effect", #{cause => I})
        || {singleton, I} <- Pairs];
      true ->
       ok
@@ -418,7 +418,7 @@ unique(Trace) ->
     [] ->
       true;
     _ ->
-      panic("Duplicate elements found: ~p", [Dupes])
+      ?panic("Duplicate elements found", #{dupes => Dupes})
   end.
 
 -spec projection_complete(atom(), trace(), [term()]) -> true.
@@ -429,7 +429,7 @@ projection_complete(Field, Trace, Expected) ->
     [] ->
       true;
     Missing ->
-      panic("Trace is missing elements: ~p", [Missing])
+      ?panic("Trace is missing elements", #{missing => Missing})
   end.
 
 -spec projection_is_subset(atom(), trace(), [term()]) -> true.
@@ -440,7 +440,7 @@ projection_is_subset(Field, Trace, Expected) ->
     [] ->
       true;
     Unexpected ->
-      panic("Trace contains unexpected elements: ~p", [Unexpected])
+      ?panic("Trace contains unexpected elements", #{unexpected => Unexpected})
   end.
 
 -spec pair_max_depth([maybe_pair()]) -> non_neg_integer().
@@ -467,9 +467,11 @@ strictly_increasing(L) ->
     [Init|Rest] ->
       Fun = fun(A, B) ->
                 A > B orelse
-                  panic("Elements ~p and ~p of list ~p are not"
-                        " strictly increasing",
-                       [A, B, L]),
+                  ?panic("Elements of list are not strictly increasing",
+                         #{ '1st_element' => A
+                          , '2nd_element' => B
+                          , list => L
+                          }),
                 A
             end,
       lists:foldl(Fun, Init, Rest),
@@ -481,10 +483,6 @@ strictly_increasing(L) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
--spec panic(string(), [term()]) -> no_return().
-panic(FmtString, Args) ->
-  error({panic, FmtString, Args}).
 
 -spec do_find_pairs( boolean()
                    , fun((event(), event()) -> boolean())
@@ -507,7 +505,7 @@ do_find_pairs(Strict, Guard, [{A, C, E}|T]) ->
           [{singleton, A}|do_find_pairs(Strict, Guard, T1)]
       end;
     {false, true} when Strict ->
-      panic("Effect occures before cause: ~p", [A]);
+      ?panic("Effect occures before cause", #{effect => A});
     _ ->
       do_find_pairs(Strict, Guard, T)
   end.
