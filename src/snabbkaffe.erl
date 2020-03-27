@@ -505,7 +505,7 @@ do_find_pairs(Strict, Guard, [{A, C, E}|T]) ->
           [{singleton, A}|do_find_pairs(Strict, Guard, T1)]
       end;
     {false, true} when Strict ->
-      ?panic("Effect occures before cause", #{effect => A});
+      ?panic("Effect occurs before cause", #{effect => A});
     _ ->
       do_find_pairs(Strict, Guard, T)
   end.

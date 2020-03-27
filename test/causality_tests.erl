@@ -42,7 +42,7 @@
 -define(pair(A), {pair, #{foo := A}, #{bar := A}}).
 -define(singleton(A), {singleton, #{foo := A}}).
 
--define(error_msg, "Effect occures before cause").
+-define(error_msg, "Effect occurs before cause").
 
 -define(error_msg_cause, "Cause without effect").
 
