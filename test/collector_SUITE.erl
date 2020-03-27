@@ -42,8 +42,8 @@ t_check_trace(_Config) when is_list(_Config) ->
      42,
      fun(Ret, Trace) ->
          ?assertMatch(42, Ret),
-         ?assertMatch( [ #{kind := '$trace_begin'}
-                       , #{kind := '$trace_end'}
+         ?assertMatch( [ #{?snk_kind := '$trace_begin'}
+                       , #{?snk_kind := '$trace_end'}
                        ]
                      , Trace)
      end).
@@ -101,7 +101,7 @@ t_pair_metric(_Config) when is_list(_Config) ->
   [?tp(bar, #{i => I}) || I <- lists:seq(1, 100)],
   Trace = snabbkaffe:collect_trace(),
   Pairs = ?find_pairs( true
-                     , #{kind := foo, i := I}, #{kind := bar, i := I}
+                     , #{?snk_kind := foo, i := I}, #{?snk_kind := bar, i := I}
                      , Trace
                      ),
   snabbkaffe:push_stats(foo_bar, Pairs).
@@ -112,7 +112,7 @@ t_pair_metric_buckets(_Config) when is_list(_Config) ->
   [?tp(bar, #{i => I}) || I <- lists:seq(1, 100)],
   Trace = snabbkaffe:collect_trace(),
   Pairs = ?find_pairs( true
-                     , #{kind := foo, i := I}, #{kind := bar, i := I}
+                     , #{?snk_kind := foo, i := I}, #{?snk_kind := bar, i := I}
                      , Trace
                      ),
   snabbkaffe:push_stats(foo_bar, 10, Pairs).
@@ -226,10 +226,10 @@ t_block_until(Config) when is_list(Config) ->
              end),
        %% Note that here `Kind' variable is captured from the context
        %% (and used to match events) and `Data' is bound in the guard:
-       ?block_until(#{kind := Kind, data := Data} when Data > 42)
+       ?block_until(#{?snk_kind := Kind, data := Data} when Data > 42)
      end,
      fun(Ret, _Trace) ->
-         ?assertMatch( {ok, #{kind := foo, data := 43}}
+         ?assertMatch( {ok, #{?snk_kind := foo, data := 43}}
                      , Ret
                      )
      end).
@@ -247,10 +247,10 @@ t_block_until_from_past(Config) when is_list(Config) ->
        ?tp(bar, #{data => 1}),
        %% This event should not be matched (data is too small):
        ?tp(foo, #{data => 1}),
-       ?block_until(#{kind := Kind, data := Data} when Data > 42)
+       ?block_until(#{?snk_kind := Kind, data := Data} when Data > 42)
      end,
      fun(Ret, _Trace) ->
-         ?assertMatch( {ok, #{kind := foo, data := 44}}
+         ?assertMatch( {ok, #{?snk_kind := foo, data := 44}}
                      , Ret
                      )
      end).
@@ -258,7 +258,7 @@ t_block_until_from_past(Config) when is_list(Config) ->
 t_block_until_timeout(Config) when is_list(Config) ->
   ?check_trace(
      begin
-       ?block_until(#{kind := foo}, 100)
+       ?block_until(#{?snk_kind := foo}, 100)
      end,
      fun(Ret, _Trace) ->
          ?assertMatch(timeout, Ret)
@@ -270,7 +270,7 @@ t_block_until_past_limit(Config) when is_list(Config) ->
        %% This event should be ignored, it's too far back in time:
        ?tp(foo, #{}),
        timer:sleep(200),
-       ?block_until(#{kind := foo}, 100, 100)
+       ?block_until(#{?snk_kind := foo}, 100, 100)
      end,
      fun(Ret, _Trace) ->
          ?assertMatch(timeout, Ret)
@@ -289,12 +289,12 @@ wait_async_action_prop() ->
                   ?tp(bar, #{}),
                   foo
               end,
-              #{kind := bar},
+              #{?snk_kind := bar},
               Timeout),
            fun({Result, Event}, _Trace) ->
                ?assertMatch(foo, Result),
                if Delay < Timeout ->
-                   ?assertMatch( {ok, #{kind := bar}}
+                   ?assertMatch( {ok, #{?snk_kind := bar}}
                                , Event
                                );
                   true ->

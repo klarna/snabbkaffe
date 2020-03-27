@@ -11,7 +11,7 @@
                     )).
 
 -define(invalid(T, L),
-        ?assertError( {panic, "Trace contains unexpected elements: ~p", _}
+        ?assertError( {panic, #{?snk_kind := "Trace contains unexpected elements"}}
                     , ?projection_is_subset(foo, [?foo(I) || I <- T], L)
                     )).
 

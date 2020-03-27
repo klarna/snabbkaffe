@@ -12,7 +12,7 @@
 %% === Somewhere in the run stage ===
 %%
 %% ```
-%% ?inject_crash( #{kind := kind1, data1 := 42}
+%% ?inject_crash( #{?snk_kind := kind1, data1 := 42}
 %%              , snabbkaffe_nemesis:always_crash()
 %%              )
 %% '''

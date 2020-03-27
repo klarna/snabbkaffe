@@ -34,8 +34,8 @@ test() ->
          %% Validate that there's always a pair of events
          ?assertMatch( [{pair, _, _} | _]
                      , ?find_pairs( true
-                                  , #{kind := ping}
-                                  , #{kind := pong}
+                                  , #{?snk_kind := ping}
+                                  , #{?snk_kind := pong}
                                   , Trace
                                   )
                      ),

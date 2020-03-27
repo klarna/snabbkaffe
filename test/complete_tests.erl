@@ -11,7 +11,7 @@
                     )).
 
 -define(invalid(T, L),
-        ?assertError( {panic, "Trace is missing elements: ~p", _}
+        ?assertError( {panic, #{?snk_kind := "Trace is missing elements"}}
                     , ?projection_complete(foo, [?foo(I) || I <- T], L)
                     )).
 

@@ -29,7 +29,7 @@ t_always_crash(Config) when is_list(Config) ->
   ?check_trace(
      begin
        ?assertMatch(ok, Run(1)),
-       Ref = ?inject_crash( #{kind := foo, data := 1}
+       Ref = ?inject_crash( #{?snk_kind := foo, data := 1}
                           , snabbkaffe_nemesis:always_crash()
                           ),
        ?assertMatch(ok, Run(2)),
@@ -47,10 +47,10 @@ t_recover(Config) when is_list(Config) ->
   N = 4,
   ?check_trace(
      begin
-       ?inject_crash( #{kind := foo}
+       ?inject_crash( #{?snk_kind := foo}
                     , snabbkaffe_nemesis:recover_after(N)
                     ),
-       [catch ?maybe_crash(#{kind => foo}) || _ <- lists:seq(1, 2*N)]
+       [catch ?maybe_crash(#{?snk_kind => foo}) || _ <- lists:seq(1, 2*N)]
      end,
      fun(_Result, Trace) ->
          ?assertEqual( N

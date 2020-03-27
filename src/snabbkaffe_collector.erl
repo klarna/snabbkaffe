@@ -47,8 +47,8 @@
 
 -spec tp(atom(), map()) -> ok.
 tp(Kind, Event) ->
-  Event1 = Event #{ ts   => timestamp()
-                  , kind => Kind
+  Event1 = Event #{ ts        => timestamp()
+                  , ?snk_kind => Kind
                   },
   ?slog(debug, Event1),
   gen_server:call(?SERVER, {trace, Event1}).
@@ -106,8 +106,8 @@ notify_on_event(Predicate, Timeout, Callback) ->
 
 init([]) ->
   TS = timestamp(),
-  BeginTrace = #{ ts   => TS
-                , kind => '$trace_begin'
+  BeginTrace = #{ ts        => TS
+                , ?snk_kind => '$trace_begin'
                 },
   {ok, #s{ trace         = [BeginTrace]
          , last_event_ts = TS
@@ -170,8 +170,8 @@ handle_info(Event = {flush, To, Timeout}, State) ->
                                ),
   case is_finished(Dt, Timeout) of
     true ->
-      TraceEnd = #{ kind => '$trace_end'
-                  , ts   => LastEventTs
+      TraceEnd = #{ ?snk_kind => '$trace_end'
+                  , ts        => LastEventTs
                   },
       Result = lists:reverse([TraceEnd|Trace]),
       gen_server:reply(To, {ok, Result}),

@@ -42,9 +42,9 @@
 -define(pair(A), {pair, #{foo := A}, #{bar := A}}).
 -define(singleton(A), {singleton, #{foo := A}}).
 
--define(error_msg, "Effect occures before cause: ~p").
+-define(error_msg, "Effect occurs before cause").
 
--define(error_msg_cause, "Cause without effect: ~p").
+-define(error_msg_cause, "Cause without effect").
 
 spng_success_test() ->
   ?assertMatch( []
@@ -64,7 +64,7 @@ spng_success_test() ->
               ).
 
 spng_fail_test() ->
-  ?assertError( {panic, ?error_msg, [_]}
+  ?assertError( {panic, #{?snk_kind := ?error_msg}}
               , ?SPNG([?foo(1), ?bar(owo), foo, ?foo(owo), ?bar(1), bar])
               ).
 
@@ -126,7 +126,7 @@ scng_succ_test() ->
               ).
 
 scng_fail_test() ->
-  ?assertError( {panic, ?error_msg_cause, [_]}
+  ?assertError( {panic, #{?snk_kind := ?error_msg_cause}}
               , ?SCNG([?foo(1), foo])
               ).
 

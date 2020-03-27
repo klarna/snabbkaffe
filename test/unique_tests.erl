@@ -7,7 +7,7 @@
         ?assertMatch(true, snabbkaffe:unique(L))).
 
 -define(invalid(L),
-        ?assertError( {panic, "Duplicate elements found: ~p", _}
+        ?assertError( {panic, #{?snk_kind := "Duplicate elements found"}}
                     , snabbkaffe:unique(L)
                     )).
 
