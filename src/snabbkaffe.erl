@@ -312,7 +312,7 @@ get_cfg([Key|T], Cfg, Default) when is_list(Cfg) ->
     {_, Val} ->
       case T of
         [] -> Val;
-        _  -> get_cfg(T, Cfg, Default)
+        _  -> get_cfg(T, Val, Default)
       end
   end;
 get_cfg(Key, Cfg, Default) when is_map(Cfg) ->

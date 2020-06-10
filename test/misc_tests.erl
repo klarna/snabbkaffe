@@ -33,3 +33,23 @@ strictly_increasing_test() ->
   ?assertError( _
               , snabbkaffe:strictly_increasing([1, 2, 2, 3])
               ).
+
+get_cfg_test() ->
+  Cfg1 = [{proper, [ {numtests, 1000}
+                   , {timeout, 42}
+                   ]}
+         ],
+  Cfg2 = #{ proper => #{ numtests => 1000
+                       , timeout => 42
+                       }
+          },
+  Cfg3 = [{proper, #{ numtests => 1000
+                    , timeout => 42
+                    }
+          }],
+  ?assertMatch(42, snabbkaffe:get_cfg([proper, timeout], Cfg1, 10)),
+  ?assertMatch(42, snabbkaffe:get_cfg([proper, foo], Cfg1, 42)),
+  ?assertMatch(42, snabbkaffe:get_cfg([proper, timeout], Cfg2, 10)),
+  ?assertMatch(42, snabbkaffe:get_cfg([proper, foo], Cfg2, 42)),
+  ?assertMatch(42, snabbkaffe:get_cfg([proper, timeout], Cfg3, 10)),
+  ?assertMatch(42, snabbkaffe:get_cfg([proper, foo], Cfg3, 42)).
