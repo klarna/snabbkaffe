@@ -232,10 +232,19 @@ do_stuff(Pid)
 There are two useful macros for running /snabbkaffe/ together with [[https://proper-testing.github.io/][propER]]:
 
 #+BEGIN_SRC erlang
+Config = [{proper, #{ numtests => 100
+                    , timeout  => 5000
+                    , max_size => 100
+                    }}, ...],
 ?run_prop(Config, PROP)
 #+END_SRC
 
-where =PROP= is a proper spec that looks something like this:
+=Config= parameter should be a proplist or a map, that (optionally)
+contains =proper= key. It can be used to pass different parameters to
+proper. Snabbkaffe will fall back to the default values (shown above)
+when parameter is absent.
+
+=PROP= is a proper spec that looks something like this:
 
 #+BEGIN_SRC erlang
 ?FORALL({Ret, L}, {term(), list()},
