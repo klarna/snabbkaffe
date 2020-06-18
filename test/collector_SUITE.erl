@@ -151,7 +151,8 @@ t_proper(Config) when is_list(Config) ->
 
 t_forall_trace(Config0) when is_list(Config0) ->
   Config = [{proper, #{ max_size => 100
-                      , numtests => 10000
+                      , numtests => 1000
+                      , timeout  => 30000
                       }} | Config0],
   Prop =
     ?forall_trace(
@@ -196,6 +197,7 @@ t_prop_run_exception(Config) when is_list(Config) ->
              ).
 
 t_prop_check_exception(Config) when is_list(Config) ->
+  ?log(notice, "Don't mind the below crashes, they are intentional!", []),
   Prop = ?forall_trace(
             X, list(),
             42, %% Bucket

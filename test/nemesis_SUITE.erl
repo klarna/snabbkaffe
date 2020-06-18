@@ -68,12 +68,12 @@ t_periodic(Config) when is_list(Config) ->
               , [F2(I) || I <- lists:seq(1, 10)]
               ).
 
-%% Check that error can be inhjectied at random trace point
+%% Check that error can be injected at random trace point
 t_break_trace_point(Config) when is_list(Config) ->
   N = 4,
   ?check_trace(
      begin
-       ?inject_crash( #{kind := foo}
+       ?inject_crash( #{?snk_kind := foo}
                     , snabbkaffe_nemesis:recover_after(N)
                     ),
        [catch ?tp(foo, #{}) || _ <- lists:seq(1, 2*N)]
@@ -86,6 +86,5 @@ t_break_trace_point(Config) when is_list(Config) ->
 
 %% Check that static unique tokens are indeed unique
 t_static_unique_points(Config) when is_list(Config) ->
-  A = ?__snkStaticUniqueToken,
-  B = ?__snkStaticUniqueToken,
+  A = ?__snkStaticUniqueToken, B = ?__snkStaticUniqueToken,
   ?assertEqual(false, A =:= B).

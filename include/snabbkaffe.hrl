@@ -29,7 +29,7 @@
 
 -define(tp(Level, Kind, Evt),
         (fun() ->
-             ?maybe_crash(Evt #{kind => Kind}),
+             ?maybe_crash(Evt #{?snk_kind => Kind}),
              snabbkaffe_collector:tp(Kind, Evt)
          end)()).
 
@@ -115,7 +115,6 @@
                                "dumb" -> [nocolors];
                                _      -> []
                              end,
-             __SnkPrint = fun(Fmt, Args) -> ?log(notice, Fmt, Args) end,
              __SnkRet = proper:quickcheck(
                           ?TIMEOUT( __SnkTimeout
                                   , begin
@@ -124,7 +123,7 @@
                                     end)
                          , [ {numtests, __SnkNumtests}
                            , {max_size, __SnkMaxSize}
-                           , {on_output, __SnkPrint}
+                           , {on_output, fun snabbkaffe:proper_printout/2}
                            ] ++ __SnkColors
                          ),
              case __SnkRet of
