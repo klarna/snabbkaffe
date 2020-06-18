@@ -25,6 +25,7 @@
         , fix_ct_logging/0
         , splitl/2
         , splitr/2
+        , proper_printout/2
         ]).
 
 -export([ events_of_kind/2
@@ -236,6 +237,14 @@ run(Config, Run, Check) ->
                    ),
       {error, {run_stage_failed, EC, Error, Stack}}
   end.
+
+-spec proper_printout(string(), list()) -> _.
+proper_printout(Char, []) when Char =:= ".";
+                               Char =:= "x";
+                               Char =:= "!" ->
+  io:put_chars(standard_error, Char);
+proper_printout(Fmt, Args) ->
+  ?log(notice, Fmt, Args).
 
 %%====================================================================
 %% List manipulation functions
