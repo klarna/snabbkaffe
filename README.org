@@ -94,8 +94,8 @@ Check that events occur in certain order, and throw an exception
 otherwise:
 
 #+BEGIN_SRC erlang
-?causality( #{kind := foo, foo := _A}
-          , #{kind := bar, foo := _A}
+?causality( #{?snk_kind := foo, foo := _A}
+          , #{?snk_kind := bar, foo := _A}
           , Trace
           )
 #+END_SRC
@@ -109,8 +109,8 @@ This macro can be extended with a guard as well. Here guard checks
 that two events actually make up a pair:
 
 #+BEGIN_SRC erlang
-?causality( #{kind := foo, foo := _A}
-          , #{kind := bar, foo := _B}
+?causality( #{?snk_kind := foo, foo := _A}
+          , #{?snk_kind := bar, foo := _B}
           , _A + 1 =:= _B
           , Trace
           )
@@ -120,8 +120,8 @@ There is a version of the above macro that checks that all cause have
 an effect:
 
 #+BEGIN_SRC erlang
-?strict_causality( #{kind := foo, foo := _A}
-                 , #{kind := bar, foo := _A}
+?strict_causality( #{?snk_kind := foo, foo := _A}
+                 , #{?snk_kind := bar, foo := _A}
                  , Trace
                  )
 #+END_SRC
@@ -140,8 +140,8 @@ powerful =?find_pairs= macro that is invoked like this:
            )
 #+END_SRC
 
-where =Strict= is a boolean that determines whever events that matched
-as =Effect= may preceed their cause.
+where =Strict= is a boolean that determines whether events that matched
+as =Effect= may precede their cause.
 
 It returns a list of tuples of type =snabbkaffe:maybe_pair/0= that is
 defined like that:
@@ -204,7 +204,7 @@ In this case =?block_until= macro should be used. It allows the
 testcase to peek into the trace. Example usage:
 
 #+BEGIN_SRC erlang
-?block_until(#{kind := Kind}, Timeout, BackInTime)
+?block_until(#{?snk_kind := Kind}, Timeout, BackInTime)
 #+END_SRC
 
 Note: it's tempting to use this macro to check the result of some
@@ -212,7 +212,7 @@ asynchronous action, like this:
 
 #+BEGIN_SRC erlang
 {ok, Pid} = foo:async_init(),
-{ok, Event} = ?block_until(#{kind := foo_init, pid := Pid}),
+{ok, Event} = ?block_until(#{?snk_kind := foo_init, pid := Pid}),
 do_stuff(Pid)
 #+END_SRC
 
@@ -222,10 +222,63 @@ this race condition:
 
 #+BEGIN_SRC
 {{ok, Pid}, {ok, Event}} = ?wait_async_action( foo:async_init()
-                                             , #{kind := foo_init, pid := Pid}
+                                             , #{?snk_kind := foo_init, pid := Pid}
                                              ),
 do_stuff(Pid)
 #+END_SRC
+
+** Declarative fault injection
+
+Any trace point can also be used to inject crashes into the
+system. This is extremely useful for testing fault-tolerance
+properties of the system and tuning the supervision trees. This is
+done using =?inject_crash= macro, like in the below example:
+
+#+BEGIN_SRC erlang
+FaultId = ?inject_crash( #{?snk_kind := some_kind, value := 42} % Pattern for matching trace points
+                       , snabbkaffe_nemesis:always_crash()      % Fault scenario
+                       , notmyday                               % Error reason
+                       )
+#+END_SRC
+
+Running this command in the run stage of the testcase will ensure that
+every time the system tries to emit a trace event matching the
+pattern, the system will crash with a reason =notmyday=, and emit a
+trace event of kind =snabbkaffe_crash=.
+
+First argument of the macro is a pattern that is used for matching
+trace events. Second argument is a "fault scenario", that determines
+how often the system should fail. The following scenarios are
+implemented:
+
+ + =snabbkaffe_nemesis:always_crash()= -- always crash, emulates
+   unrecoverable errors
+ + =snabbkaffe_nemesis:recover_after(N)= -- crash =N= times, and then
+   proceed normally, emulates recoverable errors
+ + =snabbkaffe_nemesis:random_crash(P)= -- crash in a pseudo-random
+   pattern with probability =P=, emulates an unreliable resource
+ + =snabbkaffe_nemesis:periodic_crash(Period, DutyCycle, Phase)= --
+   crash periodically, like this:
+   =[ok, ok, ok, crash, crash, ok, ok, ok, crash, crash|...]=
+   - =Period= is an integer that specifies period of the crash-recover
+     cycle
+   - =DutyCycle= is a float in =[0..1]= range, that specifies relative
+     amount of time when the trace point is /not/ crushing. (For
+     example, 1 means the system doesn't crash, and 0 means it always
+     crashes)
+   - =Phase= is a float in =[0..2*math:pi()]= range that allows to
+     shift the phase of the periodic scenario
+
+Finally, the third argument is a crash reason. It is optional, and
+defaults to the atom =notmyday=.
+
+Please note that fault scenarios work independently for each /trace
+point/. E.g. if there are two trace point that both match the same
+fault injection pattern with =recover_after= scenario, they will
+recover at different times.
+
+Later =snabbkaffe_nemesis:fix_crash(FaultId)= call can be used to
+delete the injected crash.
 
 ** PropER integration
 
