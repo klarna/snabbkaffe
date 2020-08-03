@@ -402,7 +402,7 @@ push_stats(Metric, Pairs) ->
                ).
 
 get_stats() ->
-  {ok, Stats} = gen_server:call(snabbkaffe_collector, get_stats),
+  {ok, Stats} = gen_server:call(snabbkaffe_collector, get_stats, infinity),
   Stats.
 
 analyze_statistics() ->

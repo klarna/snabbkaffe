@@ -121,13 +121,13 @@ inject_crash(Predicate, Scenario, Reason) ->
                 , scenario  = Scenario
                 , reason    = Reason
                 },
-  ok = gen_server:call(?SERVER, {inject_crash, Crash}),
+  ok = gen_server:call(?SERVER, {inject_crash, Crash}, infinity),
   Ref.
 
 %% @doc Remove injected fault
 -spec fix_crash(reference()) -> ok.
 fix_crash(Ref) ->
-  gen_server:call(?SERVER, {fix_crash, Ref}).
+  gen_server:call(?SERVER, {fix_crash, Ref}, infinity).
 
 %% @doc Check if there are any injected crashes that match this data,
 %% and respond with the crash reason if so.

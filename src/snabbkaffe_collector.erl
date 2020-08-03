@@ -64,7 +64,7 @@ tp(Kind, Event) ->
                   , ?snk_kind => Kind
                   },
   ?slog(debug, Event1),
-  gen_server:call(?SERVER, {trace, Event1}).
+  gen_server:call(?SERVER, {trace, Event1}, infinity).
 
 -spec push_stat(snabbkaffe:metric(), number() | undefined, number()) -> ok.
 push_stat(Metric, X, Y) ->
@@ -74,33 +74,27 @@ push_stat(Metric, X, Y) ->
           _ ->
             {X, Y}
         end,
-  gen_server:call(?SERVER, {push_stat, Metric, Val}).
+  gen_server:call(?SERVER, {push_stat, Metric, Val}, infinity).
 
 start_link() ->
   gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
 -spec get_stats() -> datapoints().
 get_stats() ->
-  gen_server:call(?SERVER, get_stats).
+  gen_server:call(?SERVER, get_stats, infinity).
 
+%% NOTE: Concuerror only supports `Timeout=0'
 -spec get_trace(integer()) -> snabbkaffe:timed_trace().
 get_trace(Timeout) ->
   {ok, Trace} = gen_server:call(?SERVER, {get_trace, Timeout}, infinity),
   Trace.
 
+%% NOTE: concuerror supports only `Timeout = infinity' and `BackInType = infinity'
+%% or `BackInTime = 0'
 -spec block_until(snabbkaffe:predicate(), timeout(), timeout()) ->
                      {ok, snabbkaffe:event()} | timeout.
-block_until(Predicate, Timeout, BackInTime0) ->
-  Infimum = case BackInTime0 of
-              infinity ->
-                beginning_of_times();
-              _ ->
-                BackInTime = erlang:convert_time_unit( BackInTime0
-                                                     , millisecond
-                                                     , native
-                                                     ),
-                erlang:monotonic_time() - BackInTime
-            end,
+block_until(Predicate, Timeout, BackInTime) ->
+  Infimum = infimum(BackInTime),
   gen_server:call( ?SERVER
                  , {block_until, Predicate, Timeout, Infimum}
                  , infinity
@@ -111,6 +105,7 @@ block_until(Predicate, Timeout, BackInTime0) ->
 notify_on_event(Predicate, Timeout, Callback) ->
   gen_server:call( ?SERVER
                  , {notify_on_event, Callback, Predicate, Timeout}
+                 , infinity
                  ).
 
 %%%===================================================================
@@ -146,7 +141,7 @@ handle_call({push_stat, Metric, Stat}, _From, State0) ->
 handle_call(get_stats, _From, State) ->
   {reply, {ok, State#s.stats}, State};
 handle_call({get_trace, Timeout}, From, State) ->
-  timer:send_after(Timeout, {flush, From, Timeout}),
+  send_after(Timeout, self(), {flush, From, Timeout}),
   {noreply, State};
 handle_call({block_until, Predicate, Timeout, Infimum}, From, State0) ->
   Callback = fun(Result) ->
@@ -177,20 +172,27 @@ handle_info(Event = {flush, To, Timeout}, State) ->
   #s{ trace         = Trace
     , last_event_ts = LastEventTs
     } = State,
-  Dt = erlang:convert_time_unit( timestamp() - LastEventTs
-                               , native
-                               , millisecond
-                               ),
-  case is_finished(Dt, Timeout) of
-    true ->
+  Finished =
+    if Timeout > 0 ->
+        Dt = erlang:convert_time_unit( timestamp() - LastEventTs
+                                     , native
+                                     , millisecond
+                                     ),
+        Dt >= Timeout;
+       true ->
+        %% Logically, this branch is redundand, but it's here as a
+        %% workaround for concuerror
+        true
+    end,
+  if Finished ->
       TraceEnd = #{ ?snk_kind => '$trace_end'
                   , ts        => LastEventTs
                   },
       Result = lists:reverse([TraceEnd|Trace]),
       gen_server:reply(To, {ok, Result}),
       {noreply, State #s{trace = []}};
-    false ->
-      timer:send_after(Timeout, Event),
+    true ->
+      send_after(Timeout, self(), Event),
       {noreply, State}
   end;
 handle_info(_, State) ->
@@ -275,6 +277,25 @@ send_after(infinity, _, _) ->
 send_after(Timeout, Pid, Msg) ->
   erlang:send_after(Timeout, Pid, Msg).
 
+-spec infimum(integer()) -> integer().
+-ifndef(CONCUERROR).
+infimum(infinity) ->
+  beginning_of_times();
+infimum(BackInTime0) ->
+  BackInTime = erlang:convert_time_unit( BackInTime0
+                                       , millisecond
+                                       , native
+                                       ),
+  erlang:monotonic_time() - BackInTime.
+-else.
+infimum(infinity) ->
+  beginning_of_times();
+infimum(_) ->
+  %% With concuerror, all events have `timestamp=-1', so
+  %% starting from 0 should not match any events:
+  0.
+-endif.
+
 -spec cancel_timer(reference() | undefined) -> _.
 cancel_timer(undefined) ->
   ok;
@@ -297,14 +318,4 @@ beginning_of_times() ->
 -else.
 beginning_of_times() ->
   -2.
--endif.
-
--spec is_finished(integer(), integer()) -> boolean().
--ifndef(CONCUERROR).
-is_finished(Dt, SilenceInterval) ->
-  Dt >= SilenceInterval.
--else.
-is_finished(_, _) ->
-  %% "Silence interval" feature doesn't work with Concuerror
-  true.
 -endif.
