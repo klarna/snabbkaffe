@@ -325,6 +325,34 @@ property is a simple =?FORALL= clause (like in the above example).
 
 It combines =?FORALL= and =?run_prop=.
 
+** Concuerror support
+
+Snabbkaffe has (highly) experimental support for [[https://concuerror.com][Concuerror]]. It
+requires recompiling this library with special options, so creating a
+special build profile is recommended. This can be done by adding the
+following code to the =rebar.config=:
+
+#+BEGIN_SRC erlang
+{profiles,
+ [ {concuerror,
+    [ {overrides,
+       [{add, [{erl_opts,
+                [ {d, 'CONCUERROR'}
+                , {d, 'HUT_IOFORMAT'}
+                ]}]}]}
+    ]}
+ ]}.
+#+END_SRC
+
+Run concuerror with the following flags:
+
+#+BEGIN_SRC bash
+$(CONCUERROR) -x snabbkaffe_collector -x snabbkaffe -x snabbkaffe_nemesis -x snabbkaffe_sup \
+--pa $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/ebin
+#+END_SRC
+
+P.S. Again, this feature is experimental, use at your own risk.
+
 * Benchmarking
 
 /Snabbkaffe/ automatically adds timestamps to the events, which makes
