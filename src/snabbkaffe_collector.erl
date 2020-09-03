@@ -64,7 +64,19 @@ tp(Kind, Event) ->
                   , ?snk_kind => Kind
                   },
   ?slog(debug, Event1),
-  gen_server:call(?SERVER, {trace, Event1}, infinity).
+  %% Call or cast? This is a tricky question, since we need to
+  %% preserve causality of trace events. Per documentation, Erlang
+  %% doesn't guarantee order of messages from different processes. So
+  %% call looks like a safer option. However, when testing under
+  %% concuerror, calls to snabbkaffe generate a lot (really!) of
+  %% undesirable interleavings. In the current BEAM implementation,
+  %% however, sender process gets blocked while the message is being
+  %% copied to the local receiver's mailbox. That leads to
+  %% preservation of causality. Concuerror uses this fact, as it runs
+  %% with `--instant_delivery true` by default.
+  %%
+  %% Above reasoning is only valid for local processes.
+  gen_server:cast(?SERVER, {trace, Event1}).
 
 -spec push_stat(snabbkaffe:metric(), number() | undefined, number()) -> ok.
 push_stat(Metric, X, Y) ->
@@ -121,6 +133,13 @@ init([]) ->
          , last_event_ts = TS
          }}.
 
+handle_cast({trace, Evt}, State0 = #s{trace = T0, callbacks = CB0}) ->
+  CB = maybe_unblock_someone(Evt, CB0),
+  State = State0#s{ trace         = [Evt|T0]
+                  , last_event_ts = timestamp()
+                  , callbacks     = CB
+                  },
+  {noreply, State};
 handle_cast(Evt, State) ->
   {noreply, State}.
 

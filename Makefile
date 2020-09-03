@@ -10,7 +10,9 @@ compile:
 .PHONY: concuerror_test
 concuerror_test: $(CONCUERROR)
 	rebar3 as concuerror eunit
-	$(CONCUERROR_RUN) -f $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/test/concuerror_tests.beam  || \
+	$(CONCUERROR_RUN) -f $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/test/concuerror_tests.beam -t race_test || \
+		{ cat concuerror_report.txt; exit 1; }
+	$(CONCUERROR_RUN) -f $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/test/concuerror_tests.beam -t causality_test || \
 		{ cat concuerror_report.txt; exit 1; }
 
 $(CONCUERROR):

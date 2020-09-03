@@ -3,9 +3,9 @@
 -include("snabbkaffe.hrl").
 -include_lib("stdlib/include/assert.hrl").
 
--export([test/0]).
+-export([race_test/0, causality_test/0]).
 
-test() ->
+race_test() ->
   ?check_trace(
      begin
        Parent = self(),
@@ -49,4 +49,28 @@ test() ->
          %% ?assertMatch([#{winner := 2}], ?of_kind(pong, Trace)),
          %% ?assertMatch([#{winner := 1}], ?of_kind(pong, Trace)),
          true
+     end).
+
+causality_test() ->
+  ?check_trace(
+     begin
+       C = spawn(fun() ->
+                     receive ping ->
+                         ?tp(pong, #{id => c})
+                     end
+                 end),
+       B = spawn(fun() ->
+                     receive ping ->
+                         ?tp(pong, #{id => b}),
+                         C ! ping
+                     end
+                 end),
+       A = spawn(fun() ->
+                     ?tp(pong, #{id => a}),
+                     B ! ping
+                 end),
+       ?block_until(#{?snk_kind := pong, id := c})
+     end,
+     fun(_, Trace) ->
+         ?assertEqual([a,b,c], ?projection(id, ?of_kind(pong, Trace)))
      end).
