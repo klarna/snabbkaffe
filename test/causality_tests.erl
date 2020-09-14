@@ -26,7 +26,7 @@
 
 %% Strict Cuasality No Guard
 -define(SCNG(Trace),
-        ?strict_causality( #{foo := _A}, #{bar := _A}
+        ?strict_causality( #{foo := _A} when true, #{bar := _A} when true
                          , Trace
                          )).
 
