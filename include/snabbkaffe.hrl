@@ -41,21 +41,31 @@
 -define(projection(Fields, Trace),
         snabbkaffe:projection(Fields, Trace)).
 
+-define(snk_int_match_arg(ARG),
+        fun(__SnkArg) ->
+            case __SnkArg of
+              ARG -> true;
+              _   -> false
+            end
+        end).
+
+-define(snk_int_match_arg2(M1, M2, Guard),
+        fun(__SnkArg1, __SnkArg2) ->
+            case __SnkArg1 of
+              M1 ->
+                case __SnkArg2 of
+                  M2 -> (Guard);
+                  _  -> false
+                end;
+              _ -> false
+            end
+        end).
+
 -define(find_pairs(Strict, M1, M2, Guard, Trace),
         snabbkaffe:find_pairs( Strict
-                             , fun(__SnkArg) ->
-                                   case __SnkArg of
-                                     M1 -> true;
-                                     _  -> false
-                                   end
-                               end
-                             , fun(__SnkArg) ->
-                                   case __SnkArg of
-                                     M2 -> true;
-                                     _  -> false
-                                   end
-                               end
-                             , fun(M1, M2) -> (Guard) end
+                             , ?snk_int_match_arg(M1)
+                             , ?snk_int_match_arg(M2)
+                             , ?snk_int_match_arg2(M1, M2, Guard)
                              , (Trace)
                              )).
 
@@ -64,9 +74,9 @@
 
 -define(causality(M1, M2, Guard, Trace),
         snabbkaffe:causality( false
-                            , fun(M1) -> true end
-                            , fun(M2) -> true end
-                            , fun(M1, M2) -> (Guard) end
+                            , ?snk_int_match_arg(M1)
+                            , ?snk_int_match_arg(M2)
+                            , ?snk_int_match_arg2(M1, M2, Guard)
                             , (Trace)
                             )).
 
@@ -75,9 +85,9 @@
 
 -define(strict_causality(M1, M2, Guard, Trace),
         snabbkaffe:causality( true
-                            , fun(M1) -> true end
-                            , fun(M2) -> true end
-                            , fun(M1, M2) -> (Guard) end
+                            , ?snk_int_match_arg(M1)
+                            , ?snk_int_match_arg(M2)
+                            , ?snk_int_match_arg2(M1, M2, Guard)
                             , (Trace)
                             )).
 
