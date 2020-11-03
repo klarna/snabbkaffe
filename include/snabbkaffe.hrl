@@ -174,84 +174,35 @@
 
 -define(retry(Timeout, N, Fun), snabbkaffe:retry(Timeout, N, fun() -> Fun end)).
 
--define(block_until(Match, Timeout, BackInTime),
-        (fun() ->
-             __SnkPredFun = fun(__SnkEvt) ->
-                                case __SnkEvt of
-                                  Match ->
-                                    true;
-                                  _ ->
-                                    false
-                                end
-                            end,
-             snabbkaffe:block_until(__SnkPredFun, (Timeout), (BackInTime))
-         end)()).
+-define(block_until(Pattern, Timeout, BackInTime),
+        snabbkaffe:block_until(?snk_int_match_arg(Pattern), (Timeout), (BackInTime))).
 
--define(wait_async_action(Action, Match, Timeout),
-        (fun() ->
-             __SnkPredFun = fun(__SnkEvt) ->
-                                case __SnkEvt of
-                                  Match ->
-                                    true;
-                                  _ ->
-                                    false
-                                end
-                            end,
-             snabbkaffe:wait_async_action( fun() -> Action end
-                                         , __SnkPredFun
-                                         , (Timeout)
-                                         )
-         end)()).
+-define(wait_async_action(Action, Pattern, Timeout),
+        snabbkaffe:wait_async_action( fun() -> Action end
+                                    , ?snk_int_match_arg(Pattern)
+                                    , (Timeout)
+                                    )).
 
--define(wait_async_action(Action, Match),
-        ?wait_async_action(Action, Match, infinity)).
+-define(wait_async_action(Action, Pattern),
+        ?wait_async_action(Action, Pattern, infinity)).
 
--define(block_until(Match, Timeout),
-        ?block_until(Match, (Timeout), infinity)).
+-define(block_until(Pattern, Timeout),
+        ?block_until(Pattern, (Timeout), infinity)).
 
 -define(block_until(Match),
         ?block_until(Match, infinity)).
 
 -define(split_trace_at(Pattern, Trace),
-        (fun() ->
-             __SnkSplitFun = fun(__SnkSplitArg) ->
-                                 case __SnkSplitArg of
-                                   Pattern -> false;
-                                   _       -> true
-                                 end
-                             end,
-             lists:splitwith(__SnkSplitFun, (Trace))
-         end)()).
+        lists:splitwith(?snk_int_match_arg(Pattern), (Trace))).
 
 -define(splitl_trace(Pattern, Trace),
-        (fun() ->
-             __SnkSplitFun = fun(__SnkSplitArg) ->
-                                 case __SnkSplitArg of
-                                   Pattern -> false;
-                                   _       -> true
-                                 end
-                             end,
-             snabbkaffe:splitl(__SnkSplitFun, (Trace))
-         end)()).
+        snabbkaffe:splitl(?snk_int_match_arg(Pattern), (Trace))).
 
 -define(splitr_trace(Pattern, Trace),
-        (fun() ->
-             __SnkSplitFun = fun(__SnkSplitArg) ->
-                                 case __SnkSplitArg of
-                                   Pattern -> false;
-                                   _       -> true
-                                 end
-                             end,
-             snabbkaffe:splitr(__SnkSplitFun, (Trace))
-         end)()).
+        snabbkaffe:splitr(?snk_int_match_arg(Pattern), (Trace))).
 
 -define(inject_crash(Pattern, Strategy, Reason),
-        snabbkaffe_nemesis:inject_crash( fun(__SnkEvt) ->
-                                             case __SnkEvt of
-                                               Pattern -> true;
-                                               _       -> false
-                                             end
-                                         end
+        snabbkaffe_nemesis:inject_crash( ?snk_int_match_arg(Pattern)
                                        , (Strategy)
                                        , (Reason)
                                        )).
