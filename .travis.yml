@@ -1,8 +1,10 @@
 language: erlang
 otp_release:
-  - 22.0
+  - 23.0
   - 19.3
 
 script: |
   make
-  make concuerror_test
+  if [ $TRAVIS_OTP_RELEASE = '23.0' ]; then
+    make concuerror_test
+  fi
