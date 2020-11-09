@@ -13,33 +13,33 @@
 
 -ifdef(SNK_COLLECTOR).
 
--define(panic(Kind, Args),
-        error({panic, (Args) #{?snk_kind => (Kind)}})).
+-define(panic(KIND, ARGS),
+        error({panic, (ARGS) #{?snk_kind => (KIND)}})).
 
 %% Dirty hack: we use reference to a local function as a key that can
 %% be used to refer error injection points. This works, because all
 %% invokations of this macro create a new fun object with unique id.
 -define(__snkStaticUniqueToken, fun() -> ok end).
 
--define(maybe_crash(Kind, Data),
-        snabbkaffe_nemesis:maybe_crash(Kind, Data#{?snk_kind => Kind})).
+-define(maybe_crash(KIND, DATA),
+        snabbkaffe_nemesis:maybe_crash(KIND, DATA#{?snk_kind => KIND})).
 
--define(maybe_crash(Data),
-        snabbkaffe_nemesis:maybe_crash(?__snkStaticUniqueToken, Data)).
+-define(maybe_crash(DATA),
+        snabbkaffe_nemesis:maybe_crash(?__snkStaticUniqueToken, DATA)).
 
--define(tp(Level, Kind, Evt),
+-define(tp(LEVEL, KIND, EVT),
         (fun() ->
-             ?maybe_crash(Evt #{?snk_kind => Kind}),
-             snabbkaffe_collector:tp(Kind, Evt)
+             ?maybe_crash(EVT #{?snk_kind => KIND}),
+             snabbkaffe_collector:tp(KIND, EVT)
          end)()).
 
--define(tp(Kind, Evt), ?tp(debug, Kind, Evt)).
+-define(tp(KIND, EVT), ?tp(debug, KIND, EVT)).
 
--define(of_kind(Kind, Trace),
-        snabbkaffe:events_of_kind(Kind, Trace)).
+-define(of_kind(KIND, TRACE),
+        snabbkaffe:events_of_kind(KIND, TRACE)).
 
--define(projection(Fields, Trace),
-        snabbkaffe:projection(Fields, Trace)).
+-define(projection(FIELDS, TRACE),
+        snabbkaffe:projection(FIELDS, TRACE)).
 
 -define(snk_int_match_arg(ARG),
         fun(__SnkArg) ->
@@ -49,63 +49,63 @@
             end
         end).
 
--define(snk_int_match_arg2(M1, M2, Guard),
+-define(snk_int_match_arg2(M1, M2, GUARD),
         fun(__SnkArg1, __SnkArg2) ->
             case __SnkArg1 of
               M1 ->
                 case __SnkArg2 of
-                  M2 -> (Guard);
+                  M2 -> (GUARD);
                   _  -> false
                 end;
               _ -> false
             end
         end).
 
--define(find_pairs(Strict, M1, M2, Guard, Trace),
-        snabbkaffe:find_pairs( Strict
+-define(find_pairs(STRICT, M1, M2, GUARD, TRACE),
+        snabbkaffe:find_pairs( STRICT
                              , ?snk_int_match_arg(M1)
                              , ?snk_int_match_arg(M2)
-                             , ?snk_int_match_arg2(M1, M2, Guard)
-                             , (Trace)
+                             , ?snk_int_match_arg2(M1, M2, GUARD)
+                             , (TRACE)
                              )).
 
--define(find_pairs(Strict, M1, M2, Trace),
-        ?find_pairs(Strict, M1, M2, true, Trace)).
+-define(find_pairs(STRICT, M1, M2, TRACE),
+        ?find_pairs(STRICT, M1, M2, true, TRACE)).
 
--define(causality(M1, M2, Guard, Trace),
+-define(causality(M1, M2, GUARD, TRACE),
         snabbkaffe:causality( false
                             , ?snk_int_match_arg(M1)
                             , ?snk_int_match_arg(M2)
-                            , ?snk_int_match_arg2(M1, M2, Guard)
-                            , (Trace)
+                            , ?snk_int_match_arg2(M1, M2, GUARD)
+                            , (TRACE)
                             )).
 
 -define(causality(M1, M2, Trace),
         ?causality(M1, M2, true, Trace)).
 
--define(strict_causality(M1, M2, Guard, Trace),
+-define(strict_causality(M1, M2, GUARD, TRACE),
         snabbkaffe:causality( true
                             , ?snk_int_match_arg(M1)
                             , ?snk_int_match_arg(M2)
-                            , ?snk_int_match_arg2(M1, M2, Guard)
-                            , (Trace)
+                            , ?snk_int_match_arg2(M1, M2, GUARD)
+                            , (TRACE)
                             )).
 
--define(strict_causality(M1, M2, Trace),
-        ?strict_causality(M1, M2, true, Trace)).
+-define(strict_causality(M1, M2, TRACE),
+        ?strict_causality(M1, M2, true, TRACE)).
 
--define(pair_max_depth(L), snabbkaffe:pair_max_depth(L)).
+-define(pair_max_depth(PAIRS), snabbkaffe:pair_max_depth(PAIRS)).
 
--define(projection_complete(Field, Trace, L),
-        snabbkaffe:projection_complete(Field, Trace, L)).
+-define(projection_complete(FIELD, TRACE, L),
+        snabbkaffe:projection_complete(FIELD, TRACE, L)).
 
--define(projection_is_subset(Field, Trace, L),
-        snabbkaffe:projection_is_subset(Field, Trace, L)).
+-define(projection_is_subset(FIELD, TRACE, L),
+        snabbkaffe:projection_is_subset(FIELD, TRACE, L)).
 
--define(check_trace(Bucket, Run, Check),
-        (case snabbkaffe:run( (fun() -> Bucket end)()
-                            , fun() -> Run end
-                            , begin Check end
+-define(check_trace(BUCKET, RUN, CHECK),
+        (case snabbkaffe:run( (fun() -> BUCKET end)()
+                            , fun() -> RUN end
+                            , begin CHECK end
                             ) of
            true -> true;
            ok   -> true;
@@ -145,17 +145,17 @@
              end
          end)()).
 
--define(forall_trace(Xs, Xg, Bucket, Run, Check),
-        ?FORALL(Xs, Xg, ?check_trace(Bucket, Run, Check))).
+-define(forall_trace(XS, XG, BUCKET, RUN, CHECK),
+        ?FORALL(XS, XG, ?check_trace(BUCKET, RUN, CHECK))).
 
--define(forall_trace(Xs, Xg, Run, Check),
-        ?forall_trace(Xs, Xg, #{}, Run, Check)).
+-define(forall_trace(XS, XG, RUN, CHECK),
+        ?forall_trace(XS, XG, #{}, RUN, CHECK)).
 
--define(give_or_take(Expected, Deviation, Value),
+-define(give_or_take(EXPECTED, DEVIATION, VALUE),
         (fun() ->
-             __SnkValue = (Value),
-             __SnkExpected = (Expected),
-             __SnkDeviation = (Deviation),
+             __SnkValue = (VALUE),
+             __SnkExpected = (EXPECTED),
+             __SnkDeviation = (DEVIATION),
              case catch erlang:abs(__SnkValue - __SnkExpected) of
                  __SnkDelta when is_integer(__SnkDelta),
                                  __SnkDelta =< __SnkDeviation ->
@@ -166,108 +166,59 @@
                                , {line, ?LINE}
                                , {expected, __SnkExpected}
                                , {value, __SnkValue}
-                               , {expression, (??Value)}
+                               , {expression, (??VALUE)}
                                , {max_deviation, __SnkDeviation}
                                ]})
              end
          end)()).
 
--define(retry(Timeout, N, Fun), snabbkaffe:retry(Timeout, N, fun() -> Fun end)).
+-define(retry(TIMEOUT, N, FUN), snabbkaffe:retry(TIMEOUT, N, fun() -> FUN end)).
 
--define(block_until(Match, Timeout, BackInTime),
-        (fun() ->
-             __SnkPredFun = fun(__SnkEvt) ->
-                                case __SnkEvt of
-                                  Match ->
-                                    true;
-                                  _ ->
-                                    false
-                                end
-                            end,
-             snabbkaffe:block_until(__SnkPredFun, (Timeout), (BackInTime))
-         end)()).
+-define(block_until(PATTERN, TIMEOUT, BACK_IN_TIME),
+        snabbkaffe:block_until(?snk_int_match_arg(PATTERN), (TIMEOUT), (BACK_IN_TIME))).
 
--define(wait_async_action(Action, Match, Timeout),
-        (fun() ->
-             __SnkPredFun = fun(__SnkEvt) ->
-                                case __SnkEvt of
-                                  Match ->
-                                    true;
-                                  _ ->
-                                    false
-                                end
-                            end,
-             snabbkaffe:wait_async_action( fun() -> Action end
-                                         , __SnkPredFun
-                                         , (Timeout)
-                                         )
-         end)()).
+-define(wait_async_action(ACTION, PATTERN, TIMEOUT),
+        snabbkaffe:wait_async_action( fun() -> ACTION end
+                                    , ?snk_int_match_arg(PATTERN)
+                                    , (TIMEOUT)
+                                    )).
 
--define(wait_async_action(Action, Match),
-        ?wait_async_action(Action, Match, infinity)).
+-define(wait_async_action(ACTION, PATTERN),
+        ?wait_async_action(ACTION, PATTERN, infinity)).
 
--define(block_until(Match, Timeout),
-        ?block_until(Match, (Timeout), infinity)).
+-define(block_until(PATTERN, TIMEOUT),
+        ?block_until(PATTERN, (TIMEOUT), infinity)).
 
--define(block_until(Match),
-        ?block_until(Match, infinity)).
+-define(block_until(MATCH),
+        ?block_until(MATCH, infinity)).
 
--define(split_trace_at(Pattern, Trace),
-        (fun() ->
-             __SnkSplitFun = fun(__SnkSplitArg) ->
-                                 case __SnkSplitArg of
-                                   Pattern -> false;
-                                   _       -> true
-                                 end
-                             end,
-             lists:splitwith(__SnkSplitFun, (Trace))
-         end)()).
+-define(split_trace_at(PATTERN, TRACE),
+        lists:splitwith(?snk_int_match_arg(PATTERN), (TRACE))).
 
--define(splitl_trace(Pattern, Trace),
-        (fun() ->
-             __SnkSplitFun = fun(__SnkSplitArg) ->
-                                 case __SnkSplitArg of
-                                   Pattern -> false;
-                                   _       -> true
-                                 end
-                             end,
-             snabbkaffe:splitl(__SnkSplitFun, (Trace))
-         end)()).
+-define(splitl_trace(PATTERN, TRACE),
+        snabbkaffe:splitl(?snk_int_match_arg(PATTERN), (TRACE))).
 
--define(splitr_trace(Pattern, Trace),
-        (fun() ->
-             __SnkSplitFun = fun(__SnkSplitArg) ->
-                                 case __SnkSplitArg of
-                                   Pattern -> false;
-                                   _       -> true
-                                 end
-                             end,
-             snabbkaffe:splitr(__SnkSplitFun, (Trace))
-         end)()).
+-define(splitr_trace(PATTERN, TRACE),
+        snabbkaffe:splitr(?snk_int_match_arg(PATTERN), (TRACE))).
 
--define(inject_crash(Pattern, Strategy, Reason),
-        snabbkaffe_nemesis:inject_crash( fun(__SnkEvt) ->
-                                             case __SnkEvt of
-                                               Pattern -> true;
-                                               _       -> false
-                                             end
-                                         end
-                                       , (Strategy)
-                                       , (Reason)
+-define(inject_crash(PATTERN, STRATEGY, REASON),
+        snabbkaffe_nemesis:inject_crash( ?snk_int_match_arg(PATTERN)
+                                       , (STRATEGY)
+                                       , (REASON)
                                        )).
 
--define(inject_crash(Pattern, Strategy),
-        ?inject_crash(Pattern, Strategy, notmyday)).
+-define(inject_crash(PATTERN, STRATEGY),
+        ?inject_crash(PATTERN, STRATEGY, notmyday)).
 
 -else. %% SNK_COLLECTOR
 
--define(tp(Level, Kind, Evt), ?slog(Level, Evt #{?snk_kind => Kind})).
+-define(tp(LEVEL, KIND, EVT), ?slog(LEVEL, EVT #{?snk_kind => KIND})).
 
--define(tp(Kind, Evt), ?tp(debug, Kind, Evt)).
+-define(tp(KIND, EVT), ?tp(debug, KIND, EVT)).
 
--define(maybe_crash(Kind, Data), ok).
+-define(maybe_crash(KIND, DATA), ok).
 
--define(maybe_crash(Data), ok).
+-define(maybe_crash(DATA), ok).
 
 -endif. %% SNK_COLLECTOR
 -endif. %% SNABBKAFFE_HRL
