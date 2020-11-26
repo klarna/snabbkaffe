@@ -7,13 +7,15 @@ CONCUERROR_RUN := $(CONCUERROR) -x code -x code_server -x error_handler --assert
 compile:
 	rebar3 do dialyzer,eunit,ct
 
+concuerror = $(CONCUERROR_RUN) -f $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/test/concuerror_tests.beam -t $(1) || \
+	{ cat concuerror_report.txt; exit 1; }
+
 .PHONY: concuerror_test
 concuerror_test: $(CONCUERROR)
 	rebar3 as concuerror eunit
-	$(CONCUERROR_RUN) -f $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/test/concuerror_tests.beam -t race_test || \
-		{ cat concuerror_report.txt; exit 1; }
-	$(CONCUERROR_RUN) -f $(BUILD_DIR)/concuerror+test/lib/snabbkaffe/test/concuerror_tests.beam -t causality_test || \
-		{ cat concuerror_report.txt; exit 1; }
+	$(call concuerror,race_test)
+	$(call concuerror,causality_test)
+	$(call concuerror,fail_test)
 
 $(CONCUERROR):
 	mkdir -p _build/
