@@ -23,3 +23,10 @@ complete_succ_test() ->
 complete_fail_test() ->
   ?invalid([1, 2], [1]),
   ?invalid([1, 2, 2, 3], [1, 2, 4]).
+
+
+multiple_fields_test() ->
+  Fields = [foo, bar],
+  Trace = [#{foo => 2, bar => 2, baz => 2}],
+  Pattern = [{1, 1}, {2, 2}],
+  ?projection_is_subset(Fields, Trace, Pattern).
