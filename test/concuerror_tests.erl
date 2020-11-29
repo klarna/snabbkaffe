@@ -3,7 +3,7 @@
 -include("snabbkaffe.hrl").
 -include_lib("stdlib/include/assert.hrl").
 
--export([race_test/0, causality_test/0]).
+-export([race_test/0, causality_test/0, fail_test/0]).
 
 race_test() ->
   ?check_trace(
@@ -74,3 +74,18 @@ causality_test() ->
      fun(_, Trace) ->
          ?assertEqual([a,b,c], ?projection(id, ?of_kind(pong, Trace)))
      end).
+
+%% Check that testcases fail gracefully and don't try to do anything
+%% that concuerror doesn't understand, like opening files:
+fail_test() ->
+  try
+    ?check_trace(
+       begin
+         ?tp(foo, #{})
+       end,
+       fun(_, _) ->
+           error(deliberate)
+       end)
+  catch
+    _:_ -> ok
+  end.

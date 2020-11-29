@@ -443,9 +443,9 @@ unique(Trace) ->
       ?panic("Duplicate elements found", #{dupes => Dupes})
   end.
 
--spec projection_complete(atom(), trace(), [term()]) -> true.
-projection_complete(Field, Trace, Expected) ->
-  Got = ordsets:from_list([Val || #{Field := Val} <- Trace]),
+-spec projection_complete(atom() | [atom()], trace(), [term()]) -> true.
+projection_complete(Fields, Trace, Expected) ->
+  Got = ordsets:from_list(projection(Fields, Trace)),
   Expected1 = ordsets:from_list(Expected),
   case ordsets:subtract(Expected1, Got) of
     [] ->
@@ -454,9 +454,9 @@ projection_complete(Field, Trace, Expected) ->
       ?panic("Trace is missing elements", #{missing => Missing})
   end.
 
--spec projection_is_subset(atom(), trace(), [term()]) -> true.
-projection_is_subset(Field, Trace, Expected) ->
-  Got = ordsets:from_list([Val || #{Field := Val} <- Trace]),
+-spec projection_is_subset(atom() | [atom()], trace(), [term()]) -> true.
+projection_is_subset(Fields, Trace, Expected) ->
+  Got = ordsets:from_list(projection(Fields, Trace)),
   Expected1 = ordsets:from_list(Expected),
   case ordsets:subtract(Got, Expected1) of
     [] ->
@@ -533,6 +533,7 @@ do_find_pairs(Strict, Guard, [{A, C, E}|T]) ->
   end.
 
 -spec dump_trace(trace()) -> file:filename().
+-ifndef(CONCUERROR).
 dump_trace(Trace) ->
   {ok, CWD} = file:get_cwd(),
   Filename = integer_to_list(os:system_time()) ++ ".log",
@@ -545,6 +546,10 @@ dump_trace(Trace) ->
     file:close(Handle)
   end,
   FullPath.
+-else.
+dump_trace(Trace) ->
+  lists:foreach(fun(I) -> io:format("~99999p.~n", [I]) end, Trace).
+-endif. %% CONCUERROR
 
 -spec inc_counters([Key], Map) -> Map
         when Map :: #{Key => integer()}.

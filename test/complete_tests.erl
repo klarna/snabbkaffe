@@ -23,3 +23,9 @@ complete_succ_test() ->
 complete_fail_test() ->
   ?invalid([1, 3, 4], [1, 3, 4, 5]),
   ?invalid([1, 2, 2, 3], [1, 2, 3, 4]).
+
+multiple_fields_test() ->
+  Fields = [foo, bar],
+  Trace = [#{foo => 1, bar => 1}, #{foo => 2, bar => 2, baz => 2}],
+  Pattern = [{1, 1}, {2, 2}],
+  ?projection_complete(Fields, Trace, Pattern).
