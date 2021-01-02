@@ -8,27 +8,26 @@
 race_test() ->
   ?check_trace(
      begin
-       Parent = self(),
        Pid = spawn_link(fun() ->
                             receive
                               {ping, N} ->
                                 ?tp(pong, #{winner => N})
-                            end,
-                            Parent ! done
+                            end
                         end),
        %% Spawn two processes competing to send ping message to the
        %% first one:
        spawn_link(fun() ->
-                      ?tp(ping, #{id => 1}),
+                      catch ?tp(ping, #{id => 1}),
                       Pid ! {ping, 1},
                       ok
                   end),
        spawn_link(fun() ->
-                      ?tp(ping, #{id => 2}),
+                      catch ?tp(ping, #{id => 2}),
                       Pid ! {ping, 2},
                       ok
                   end),
-       receive done -> ok end
+       %% Wait for the termination of the receiving process:
+       ?block_until(#{?snk_kind := pong})
      end,
      fun(_Ret, Trace) ->
          %% Validate that there's always a pair of events
