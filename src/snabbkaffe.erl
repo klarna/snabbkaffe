@@ -684,5 +684,5 @@ splitwith_(Pred, [Hd|Tail], Taken) ->
     true  -> splitwith_(Pred, Tail, [Hd|Taken]);
     false -> {lists:reverse([Hd|Taken]), Tail}
   end;
-splitwith_(Pred, [], Taken) ->
+splitwith_(_Pred, [], Taken) ->
   {lists:reverse(Taken), []}.

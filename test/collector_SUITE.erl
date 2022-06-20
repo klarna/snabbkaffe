@@ -1,6 +1,7 @@
 -module(collector_SUITE).
 
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("snabbkaffe/include/ct_boilerplate.hrl").
 
@@ -86,7 +87,7 @@ t_bar(Config) when is_list(Config) ->
 
 t_simple_metric(_Config) when is_list(_Config) ->
   [snabbkaffe:push_stat(test, rand:uniform())
-   || I <- lists:seq(1, 100)],
+   || _I <- lists:seq(1, 100)],
   ok.
 
 t_bucket_metric(_Config) when is_list(_Config) ->

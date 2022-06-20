@@ -80,9 +80,6 @@
 
 -type fault_key() :: term().
 
-%% State of failure point (it's a simple counter, see above comment):
--type fault_state() :: {fault_key(), integer()}.
-
 %% Injected error:
 -record(fault,
         { reference :: reference()

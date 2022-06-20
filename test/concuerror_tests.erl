@@ -64,7 +64,7 @@ causality_test() ->
                          C ! ping
                      end
                  end),
-       A = spawn(fun() ->
+       _ = spawn(fun() ->
                      ?tp(pong, #{id => a}),
                      B ! ping
                  end),

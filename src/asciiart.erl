@@ -89,7 +89,7 @@ line(Cnv, {X1, Y1}, {X2, Y2}, Char) ->
   X = X2 - X1,
   Y = Y2 - Y1,
   N = max(1, max(abs(X), abs(Y))),
-  lists:foldl( fun(Pos, Cnv) -> char(Cnv, Pos, Char) end
+  lists:foldl( fun(Pos, CnvAcc) -> char(CnvAcc, Pos, Char) end
              , Cnv
              , [{ X1 + round(X * I / N)
                 , Y1 + round(Y * I / N)
@@ -111,8 +111,8 @@ string(Cnv, {X, Y}, String, Direction) ->
            lists:seq(X - length(String) + 1, X)
        end,
   L = lists:zip(XL, String),
-  lists:foldl( fun({X, Char}, Cnv) ->
-                   char(Cnv, {X, Y}, Char)
+  lists:foldl( fun({X0, Char}, CnvAcc) ->
+                   char(CnvAcc, {X0, Y}, Char)
                end
              , Cnv
              , L
@@ -166,8 +166,8 @@ plot(Datapoints, Config) ->
              ).
 
 draw_datapoints(Frame, Char, Data, Acc) ->
-  lists:foldl( fun(Coords, Acc) ->
-                   char(Acc, plot_coord(Frame, Coords), Char)
+  lists:foldl( fun(Coords, SubAcc) ->
+                   char(SubAcc, plot_coord(Frame, Coords), Char)
                end
              , Acc
              , Data

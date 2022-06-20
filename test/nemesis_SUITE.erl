@@ -1,6 +1,7 @@
 -module(nemesis_SUITE).
 
 -compile(export_all).
+-compile(nowarn_export_all).
 
 -include_lib("snabbkaffe/include/ct_boilerplate.hrl").
 

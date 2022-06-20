@@ -140,7 +140,7 @@ handle_cast({trace, Evt}, State0 = #s{trace = T0, callbacks = CB0}) ->
                   , callbacks     = CB
                   },
   {noreply, State};
-handle_cast(Evt, State) ->
+handle_cast(_Evt, State) ->
   {noreply, State}.
 
 handle_call({trace, Evt}, _From, State0 = #s{trace = T0, callbacks = CB0}) ->
